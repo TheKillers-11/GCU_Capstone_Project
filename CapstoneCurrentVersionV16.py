@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[17]:
+# In[24]:
 
 
 import pandas as pd
@@ -294,19 +294,58 @@ def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
     price_col = price_map[price_type]
     filtered_df['Value'] = filtered_df['Amount'] * filtered_df[price_col]
     usd_val = filtered_df['Value'].iloc[-1]
-    
+    print(filtered_df)
     # Specify RGB color to be used in much of the graph
     darker_gold_color = 'rgb(184,134,11)'
     if radio_value=='individual':
-        filtered_df = session_state.raw_all_wallet_df.copy()
-        filtered_df['Value'] = filtered_df['Amount'] * filtered_df[price_col]
         fig_title = 'USD Value Per Wallet Time Series'
         if button_id!=None:
             button_id = button_id.split('_')[0]
             fig_title += f' {button_id}'
-
+        else:
+            filtered_df = session_state.raw_all_wallet_df.copy()
+        filtered_df['Value'] = filtered_df['Amount'] * filtered_df[price_col]
         # Plotting the time series graph for each wallet
-        fig = px.line(filtered_df, x='Date', y='Value', color='Wallet', title='Value over Time for Different Wallets', category_orders={'Wallet': filtered_df['Wallet'].unique()})
+        #fig = px.line(filtered_df, x='Date', y='Value', color='Wallet', title=fig_title, category_orders={'Wallet': filtered_df['Wallet'].unique()})
+        # List of unique colors for the individual wallet graph
+        color_sequence = ['lightgrey','rgb(184,134,11)', 
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+            '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
+            '#c49c94', '#f7b6d2', '#c7c7c7', '#dbdb8d', '#9edae5',
+            '#393b79', '#ff9c00', '#5254a3', '#d94801', '#ff5800'
+        ]
+        
+        
+        fig = px.line(filtered_df, x='Date', y='Value', color='Wallet', title=fig_title,hover_data={"Value": ":$.2f", "Date": True},
+              category_orders={'Wallet': filtered_df['Wallet'].unique()},
+              color_discrete_map={wallet: color_sequence[i % len(color_sequence)] for i, wallet in enumerate(filtered_df['Wallet'].unique())})
+        # Customize the layout for sleek y-axis ticks
+        fig.update_layout(
+            legend=dict(
+                x=1.1,  # Set the legend's x position to 1 (right)
+                y=1.2,  # Set the legend's y position to 1 (top)
+                xanchor='right',  # Specify legend's location
+                yanchor='top'
+            ),
+            yaxis=dict(
+                title='USD Value',
+                tickmode='linear',
+                tick0=filtered_df['Value'].min(),  # Set the lowest tick to the minimum value
+                dtick=(filtered_df['Value'].max() - filtered_df['Value'].min()) / 4,  # Calculate tick interval for 5 ticks
+                tickformat='$,.0f',  # Format y-axis ticks as currency with 2 decimal places
+                showgrid=False,
+                gridcolor='lightgray',
+            ),
+            xaxis=dict(
+                hoverformat='%b %d, %Y',
+                title='Date',
+                showgrid=False
+            ),
+            paper_bgcolor='black',
+            plot_bgcolor='black',
+            font=dict(color=darker_gold_color)
+        )
 
     elif radio_value=='portfolio':
         # Use default title if there is no title passed
@@ -352,6 +391,7 @@ def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
                 tickformat=',.8f', # Format y2-axis ticks with 8 decimal places
             ),
             xaxis=dict(
+                hoverformat='%b %d, %Y',
                 title='Date',
                 showgrid=False),
             paper_bgcolor='black',  
@@ -662,8 +702,14 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
         
     # Initialize the days_offset for filtering to 0; grab the earliest and latest dates in the session_state's filtered_all_wallet_df 
     days_offset = 0
-    earliest_date = session_state.filtered_all_wallet_df['Date'].min()
-    latest_date = session_state.filtered_all_wallet_df['Date'].max()
+    earliest_date = None
+    latest_date = None
+    if radio_value=='individual':
+        earliest_date = session_state.raw_all_wallet_df['Date'].min()
+        latest_date = session_state.raw_all_wallet_df['Date'].max()
+    elif radio_value=='portfolio':
+        earliest_date = session_state.filtered_all_wallet_df['Date'].min()
+        latest_date = session_state.filtered_all_wallet_df['Date'].max()
 
     # Determine days_offset by what button is clicked
     if button_id == '1D_button':
@@ -679,10 +725,15 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
     elif button_id == 'YTD_button':
         # Get the current year and highest date in dataframe (current date); this could be hardcoded, but I want it to be dynamic 
         current_year = datetime.now().year
-    
+
         # Calculate the difference in days between january 1st of the same year and the latest date in the session_state's filtered_all_wallet_df dataframe
         start_of_year = datetime(current_year,1,1)
-        days_offset = (latest_date - start_of_year.date()).days 
+        if radio_value == 'individual':
+            latest_date = pd.to_datetime(latest_date)
+            days_offset = (latest_date - pd.Timestamp(start_of_year)).days
+        elif radio_value=='portfolio':
+            days_offset = (latest_date - start_of_year.date()).days 
+        
     elif button_id == '1Y_button':
         days_offset = 365
     elif button_id == '5Y_button':
@@ -694,6 +745,7 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
     offset_days_back = (latest_date - pd.DateOffset(days=days_offset)).date()
     filtered_df = None
     if radio_value=='individual':
+        offset_days_back = pd.to_datetime(offset_days_back)
         filtered_df = session_state.raw_all_wallet_df[(session_state.raw_all_wallet_df['Date'] >= offset_days_back) & (session_state.raw_all_wallet_df['Date'] <= latest_date)]
     elif radio_value=='portfolio':
         filtered_df = session_state.filtered_all_wallet_df[(session_state.filtered_all_wallet_df['Date'] >= offset_days_back) & (session_state.filtered_all_wallet_df['Date'] <= latest_date)]
