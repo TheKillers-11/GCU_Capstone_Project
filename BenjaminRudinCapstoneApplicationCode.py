@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[3]:
+# In[7]:
 
 
 import pandas as pd
@@ -19,12 +19,12 @@ import plotly.graph_objects as go
 button_style = {'background-color': 'black', 'color': 'rgb(184, 134, 11)', 'border': '1px solid rgb(184, 134, 11)'}
 
 # Hard-code early BTC data that is not widely available; see comments on each price 
-early_BTC_data = {2009: {'Open':0.01,'Close':0.01,'Avg Price':0.01}, # Arbitrary value using a penny as the price since BTC was basically unpriced/miniscule in price at this time
-                  2010: {'Open':0.18,'Close':0.18,'Avg Price':0.18}, # Arbitrary value using the average of the first price (0.05) and last price (0.30) of 2010
-                  2011: {'Open':2.28,'Close':2.28,'Avg Price':2.28}, # Arbitrary value using the average of the first price (0.30) and last price (4.25) of 2011
-                  2012: {'Open':9.09,'Close':9.09,'Avg Price':9.09}, # Arbitrary value using the average of the first price (4.72) and last price (13.45) of 2012
-                  2013: {'Open':383.76,'Close':383.76,'Avg Price':383.76}, # Arbitrary value using the average of the first price (13.51) and last price (754.01) of 2013
-                  2014: {'Open':618.73,'Close':618.73,'Avg Price':618.73}, # Arbitrary value using the average of the first price of 2014 (771.40) and September 16, 2014 price (466.06), which is the first day that yfinance does not have (754.01)
+early_BTC_data = {2009: {'Open':0.01,'Close':0.01,'Avg Price':0.01,'Low':0.01,'High':0.01}, # Arbitrary value using a penny as the price since BTC was basically unpriced/miniscule in price at this time
+                  2010: {'Open':0.18,'Close':0.18,'Avg Price':0.18,'Low':0.18,'High':0.18}, # Arbitrary value using the average of the first price (0.05) and last price (0.30) of 2010
+                  2011: {'Open':2.28,'Close':2.28,'Avg Price':2.28,'Low':2.28,'High':2.28}, # Arbitrary value using the average of the first price (0.30) and last price (4.25) of 2011
+                  2012: {'Open':9.09,'Close':9.09,'Avg Price':9.09,'Low':9.09,'High':9.09}, # Arbitrary value using the average of the first price (4.72) and last price (13.45) of 2012
+                  2013: {'Open':383.76,'Close':383.76,'Avg Price':383.76,'Low':383.76,'High':383.76}, # Arbitrary value using the average of the first price (13.51) and last price (754.01) of 2013
+                  2014: {'Open':618.73,'Close':618.73,'Avg Price':618.73,'Low':618.73,'High':618.73}, # Arbitrary value using the average of the first price of 2014 (771.40) and September 16, 2014 price (466.06), which is the first day that yfinance does not have (754.01)
                  }
 # Define the start and end dates for hard-to-get BTC prices
 start_date = datetime(2009, 1, 3)
@@ -35,7 +35,12 @@ records = []
 for date in pd.date_range(start=start_date, end=end_date):
     # Grab the year of the current date to properly query the early_BTC_data dict
     year = date.year
-    records.append({'Date':date.strftime('%Y-%m-%d %H:%M:%S'),'Open':early_BTC_data[year]['Open'],'Close':early_BTC_data[year]['Close'],'Avg Price':early_BTC_data[year]['Avg Price']})
+    records.append({'Date':date.strftime('%Y-%m-%d %H:%M:%S'),
+                    'Open':early_BTC_data[year]['Open'],
+                    'Close':early_BTC_data[year]['Close'],
+                    'Avg Price':early_BTC_data[year]['Avg Price'],
+                    'Low':early_BTC_data[year]['Low'],
+                    'High':early_BTC_data[year]['High']})
 new_records = pd.DataFrame(records)  
 
 # Retrieve all Bitcoin prices on Yahoo finance, beginning on September 17th, 2014
@@ -48,7 +53,8 @@ BTC_df.rename(columns={'index': 'Date'}, inplace=True)
 
 # Format the BTC DataFrame; add the average price column, which is used as the BTC price for an entire day in this project
 BTC_df['Date'] = BTC_df['Date'].dt.strftime('%Y-%m-%d')
-BTC_df.drop(['Stock Splits','Dividends','High','Low','Volume'],inplace=True,axis=1)
+#BTC_df.drop(['Stock Splits','Dividends','High','Low','Volume'],inplace=True,axis=1) # old line
+BTC_df.drop(['Stock Splits','Dividends','Volume'],inplace=True,axis=1)
 
 # Join the pricing dataframes
 BTC_df = pd.concat([new_records,BTC_df], ignore_index=True, axis = 0)
@@ -87,8 +93,10 @@ BTC_df['Date'] = BTC_df['Date'].astype(str)
 # Instead, using a class seems to be the best way around this
 class SessionState:
     def __init__(self):
-        self.raw_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
-        self.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
+        # self.raw_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
+        # self.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
+        self.raw_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Low', 'Avg Price', 'High', 'Wallet'])
+        self.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Low', 'Avg Price', 'High', 'Wallet'])
 
 # Create an instance of the SessionState class
 session_state = SessionState()
@@ -147,7 +155,8 @@ def validate_wallet(bitcoin_address):
 # Create a dataframe of the transactions and add them to the session_state's raw and filtered dataframes respectively
 def get_wallet_data(bitcoin_address,transactions):
     global BTC_df # Dash documentation suggests not using global variables if the variable will be changed by the user; BTC_df will never be changed
-    wallet_df = pd.DataFrame(columns=['Date','Price','Amount','Value','Wallet'])
+    #wallet_df = pd.DataFrame(columns=['Date','Price','Amount','Value','Wallet'])
+    wallet_df = pd.DataFrame(columns=['Date','Low','Avg Price','High','Amount','Wallet'])
     total_balance = 0
     
     # Iterate through the transactions list backwards, which will allow the oldest transactions to be evaluated first
@@ -172,14 +181,21 @@ def get_wallet_data(bitcoin_address,transactions):
         # Find the date in the BTC_df to pull the price on that date
         check_date = str(date)[:10]
         price_entry = BTC_df[BTC_df['Date'] == check_date]
-        price = price_entry['Avg Price'].iloc[0] 
-        current_value = round(price*total_balance_in_BTC,2) # Probably should remove value for the time being; recalculate at final steps of filtering is easier
-        new_row = pd.DataFrame([{'Date':date,'Price':price,'Value':current_value,'Amount':total_balance_in_BTC,'Wallet':bitcoin_address}])
+        avg_price = price_entry['Avg Price'].iloc[0] 
+        low_price = price_entry['Low'].iloc[0]
+        high_price = price_entry['High'].iloc[0]
+        # attempt to remove this ========!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        #current_value = round(price*total_balance_in_BTC,2) # Probably should remove value for the time being; recalculate at final steps of filtering is easier
+        #new_row = pd.DataFrame([{'Date':date,'Price':price,'Value':current_value,'Amount':total_balance_in_BTC,'Wallet':bitcoin_address}])
+        #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        
+        new_row = pd.DataFrame([{'Date':date,'Low':low_price,'Avg Price':avg_price,'High':high_price,'Amount':total_balance_in_BTC,'Wallet':bitcoin_address}])
+
         wallet_df = pd.concat([wallet_df,new_row],ignore_index=True)
 
     # Format floats to 2 decimal places in the Value column
     pd.set_option('float_format', '{:f}'.format)
-    wallet_df['Value'] = wallet_df['Value'].apply(lambda x: '{:.2f}'.format(x))
+    #wallet_df['Value'] = wallet_df['Value'].apply(lambda x: '{:.2f}'.format(x))
 
     # Next, the df is normalized to include all dates from Bitcoin's inception to today
     # If the date doesn't exist in the dataframe, an entry for the date is added, and it is set to the previous days latest entry
@@ -194,7 +210,9 @@ def get_wallet_data(bitcoin_address,transactions):
     result_df = pd.DataFrame(columns=wallet_df.columns)
 
     # Initialize the previous_entry Series with 0s and the bitcoin_address as values
-    previous_entry = pd.Series({'Amount':0,'Price':0,'Value':0,'Wallet':bitcoin_address})
+    previous_entry = pd.Series({'Amount':0,'Low':0,'Avg Price':0,'High':0,'Wallet':bitcoin_address})
+    #previous_entry = pd.Series({'Amount':0,'Price':0,'Value':0,'Wallet':bitcoin_address})
+
     new_entries = []
     # Loop through the date range
     while start_date <= end_date:
@@ -203,12 +221,13 @@ def get_wallet_data(bitcoin_address,transactions):
         if date_check not in wallet_df['Date'].dt.date.values:
             new_entries.append({'Date':start_date,
                                 'Amount':previous_entry['Amount'],
-                                'Price':BTC_df.loc[BTC_df['Date'] == str(date_check), 'Avg Price'].values[0],
-                                'Value':previous_entry['Value'],
+                                'Low':BTC_df.loc[BTC_df['Date'] == str(date_check), 'Low'].values[0],
+                                'Avg Price':BTC_df.loc[BTC_df['Date'] == str(date_check), 'Avg Price'].values[0],
+                                'High':BTC_df.loc[BTC_df['Date'] == str(date_check), 'High'].values[0],
                                 'Wallet':previous_entry['Wallet']})   
         # The date exists; update the previous_entry to reflect this date's entry
         else:
-            previous_entry = wallet_df[wallet_df['Date'].dt.date == date_check].iloc[-1]
+            previous_entry = wallet_df.loc[wallet_df['Date'].dt.date == date_check].iloc[-1]
         start_date += timedelta(days=1)
 
     result_df = pd.DataFrame(new_entries)
@@ -246,25 +265,37 @@ def get_wallet_data(bitcoin_address,transactions):
     latest_entries['Date'] = latest_entries['Date'].dt.date
     
     # Sum the "amount" and "value" of all dates grouping by date and price
-    session_state.filtered_all_wallet_df = latest_entries.groupby(['Date', 'Price'])[['Amount', 'Value']].sum(numeric_only=True).reset_index()
+    session_state.filtered_all_wallet_df = latest_entries.groupby(['Date', 'Avg Price'])[['Amount']].sum(numeric_only=True).reset_index() # This may need to have low and high? 
     
     # The value here is technically incorrect; value should not be summed
     # Recalculate the value by looping through the filtered_all_wallet_df and multiplying amount by price
-    value_list = []
+    # value_list = []
     
     # Loop through the DataFrame and calculate the 'Value' for each row; add the 'Value' column using the value_list
-    for index, row in session_state.filtered_all_wallet_df.iterrows():
-        amount = row['Amount']
-        price = row['Price']
-        value = round(amount*price,2)
-        value_list.append(value)
-    session_state.filtered_all_wallet_df['Value'] = value_list
+    #lambda fumnction here? 
+    # for index, row in session_state.filtered_all_wallet_df.iterrows():
+    #     amount = row['Amount']
+    #     price = row['Price']
+    #     #value = round(amount*price,2)
+    #     #value_list.append(value)
+    # session_state.filtered_all_wallet_df['Value'] = value_list
     
-def generate_graph(filtered_df,button_id=None,empty_df=None):
-    # Create an empty fig for initial page load if an empty_df is passed
-    if len(filtered_df)==0 and len(empty_df)>0:
-        filtered_df = pd.DataFrame(empty_df)
-        
+    
+#def generate_graph(filtered_df,button_id=None,empty_df=None): should probably take radio items, and an additional df as well here? 
+
+    
+    
+def generate_graph(filtered_df,price_type,button_id=None):
+    # if an emtpy filtered_df is passed, generate an empty figure
+    if filtered_df==None or len(filtered_df)>0:
+        filtered_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Low':0,'Avg Price':0,'High':0}])
+    
+    price_map = {'24hr-low':'Low', '24hr-average':'Avg Price', '24hr-high':'High'}
+    price_col = price_options[price_type]
+    filtered_df['Value'] = filtered_df['Amount'] * filtered_df[price_col]
+
+    
+    # If Portfolio is selected ---------------------------------------------------
     # Use default title if there is no title passed
     fig_title = 'Bitcoin Amount and USD Value Time Series'
     if button_id!=None:
@@ -356,9 +387,9 @@ buttons = [
     html.Button('ALL',id='ALL_button', style=button_style)
 ]
 
-# Create a default empty dataframe and graph to display on the Dash application's initial load
-empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Price':0}])
-empty_fig = generate_graph(pd.DataFrame(),None,empty_df)
+# # Create a default empty dataframe and graph to display on the Dash application's initial load
+# empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Low':0,'Avg Price':0,'High':0}])
+# empty_fig = generate_graph(pd.DataFrame(),None,empty_df)
 
 # Object that contains the wallet_graph on the page; uses the generated empty figure initially
 wallet_graph = dcc.Graph(id='wallet_graph',figure=empty_fig)
@@ -404,7 +435,11 @@ app.layout = html.Div([
                     ])
                 ], width = 7)
             ]),
-            html.Div([wallet_graph], style={'border': '2px solid rgb(184,134,11)'}),
+            html.Div([
+                dcc.Graph(id='wallet_graph',
+                          figure=generate_graph(session_state.filtered_all_wallet_df,'24hr-average')
+                         )
+            ], style={'border': '2px solid rgb(184,134,11)'}), 
             html.Br(),
             
             # Portfolio metrics that go below the wallet_graph
@@ -428,9 +463,9 @@ app.layout = html.Div([
                     )
                 ], width = 3),
                 dbc.Col([
-                    dbc.Label("Calculation Method:",html_for='read-only-input',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+                    dbc.Label("Calculation Method:",html_for='price_type_dropdown',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
                     dcc.Dropdown(
-                        id='read-only-input',
+                        id='price_type_dropdown',
                         options=['24hr-low','24hr-high','24hr-average'],
                         value='24hr-average',
                         style={'width': '200px', 'height':'35px'}
@@ -444,9 +479,9 @@ app.layout = html.Div([
             dbc.Row([
                 dbc.Col([],width={'offset':1,'size':3}),
                 dbc.Col([
-                    dbc.Label("Price Prediction Target Year:",html_for='regression_target_year',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+                    dbc.Label("Price Prediction Target Year:",html_for='projection_target_year',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
                     dcc.Dropdown(
-                        id='regression_target_year',
+                        id='projection_target_year',
                         options=[{'label': year, 'value': year} for year in [str(year) for year in range(2024, 2040)]],
                         placeholder='Select a future year.',
                         style={'width':'200px','text-align': 'center'}
@@ -472,9 +507,9 @@ app.layout = html.Div([
                         )
                     ], width = {'offset':1,'size':3}),
                     dbc.Col([
-                        dbc.Label("Projected Bitcoin USD Value:",html_for='projected_bitcoin_usd_value',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+                        dbc.Label("Projected Bitcoin USD Value:",html_for='projection_btc_usd_value',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
                         dcc.Input(
-                            id='projected_bitcoin_usd_value',
+                            id='projection_btc_usd_value',
                             value=0,
                             readOnly=True,
                             style={'width':'200px','height':'35px','text-align': 'center'}
@@ -501,27 +536,44 @@ def update_address_count(children):
     return str(address_count)+' Addresses Added'
 
 @app.callback(
-    
-     
     Output('wallet_addresses_text_input','value',allow_duplicate=True),
     Output('wallet_addresses_counter_and_label','children',allow_duplicate=True),
     Output('wallet_addresses','children',allow_duplicate=True),
     Output('filter_view_radio_items','value',allow_duplicate=True), 
     Output('wallet_graph','figure',allow_duplicate=True),
     Output('current_bitcoin_balance','value',allow_duplicate=True),
-    Output('projection_bitcoin_balance','value',allow_duplicate=True),
     Output('current_bitcoin_usd_value','value',allow_duplicate=True),
-#     # Level radio items
-#     # Calculation Method
-#     # Price Prediction Target Year... drop that whole div? 
+    Output('price_type_dropdown','value',allow_duplicate=True),
+    Output('projection_target_year','value',allow_duplicate=True),
+    Output('projection_graph','figure',allow_duplicate=True),
+    Output('projection_bitcoin_balance','value',allow_duplicate=True),
+    Output('projection_btc_usd_value','value',allow_duplicate=True),
+    Output('projection_graph_div','style',allow_duplicate=True),
     Input('wallet_addresses_clear_button','n_clicks'),
     prevent_initial_call=True)
 def reset_application(n_clicks):
     if n_clicks>0:
-        session_state.raw_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
-        session_state.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
-        return None,'0 Addresses Added:',[],'portfolio',empty_fig
-    
+        session_state.raw_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Low', 'Avg Price', 'High', 'Wallet'])
+        session_state.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Low', 'Avg Price', 'High', 'Wallet'])
+        return None,'0 Addresses Added:',[],'portfolio',empty_fig,0,0,'24hr-average',None,None,0,0,{'display':'none'}
+
+# # Callback to change graph 1 based on calculation method selected
+# @app.callback(
+#     Output('wallet_graph','figure',allow_duplicate=True), # By default, objects should not used as output in multiple callbacks; have to allow duplicates manually
+#     Output('current_bitcoin_balance','value',allow_duplicate=True),
+#     Output('projection_bitcoin_balance','value',allow_duplicate=True),
+#     Output('current_bitcoin_usd_value','value',allow_duplicate=True),
+#     Input('price_type_dropdown','value',allow_duplicate=True),
+#     State('wallet_addresses','children'),
+#     prevent_initial_call=True)
+# def change_price_calculation(price_type,wallet_addresses):
+#     if len(wallet_addresses)>0:
+#         fig = generate_graph(session_state.filtered_all_wallet_df,price_type)
+#         curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
+#         curr_usd_value = session_state.filtered_all_wallet_df['Value'].iloc[-1]
+#         curr_usd_value = f"${curr_usd_value:.2f}"
+#         return fig,curr_btc_balance,curr_btc_balance,curr_usd_value
+
 # Callback that tracks the user wallets added and processes them (adds them to the page, generates graphs, generates session_state's dataframes for the wallet)
 @app.callback(
     Output('wallet_addresses_text_input','value',allow_duplicate=True),
@@ -533,9 +585,11 @@ def reset_application(n_clicks):
     Input('wallet_address_submit_button','n_clicks'),
     State('wallet_addresses_text_input','value'),
     State('wallet_addresses','children'),
+    State('price_type_dropdown','value'),
     prevent_initial_call=True
 )
-def update_portfolio_display(n_clicks,input_value,wallet_addresses):    
+#def update_portfolio_display(n_clicks,input_value,wallet_addresses):  
+def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type):    
     if wallet_addresses is None:
         wallet_addresses = []
     if n_clicks > 0 and input_value:
@@ -545,7 +599,10 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses):
             input_value = '-INVALID'+str(input_value)
         wallet_addresses.append(html.Div(input_value,style={'color': 'rgb(184, 134, 11)'}))
         input_value = ''
-    fig = generate_graph(session_state.filtered_all_wallet_df)
+    print(session_state.filtered_all_wallet_df)
+    #fig = generate_graph(session_state.filtered_all_wallet_df)
+    fig = generate_graph(session_state.filtered_all_wallet_df,price_type)
+
     
     # Grab the current btc balance / usd value by querying these respective columns in the last row of the session_state's filtered_all_wallet_df
     curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
@@ -615,14 +672,16 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
 @app.callback(
     Output('projection_graph_div','style'),
     Output('projection_graph','figure'),
-    Input('regression_target_year','value'),
+    Input('projection_target_year','value'),
     State('wallet_addresses','children'),
     prevent_initial_call=True
 )
 def update_projection_display(input_year,wallet_addresses):
     # The below code is a placeholder for now, just returning an empty graph similar to the first graph when the page loads initially
-    empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Price':0}])
+    empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Low':0,'Avg Price':0,'High':0}])
     empty_fig = generate_graph(pd.DataFrame(),None,empty_df)
+    if input_year==None:
+        return {'display':'none'},empty_fig
     if wallet_addresses==None:
         return {'display':'block'},empty_fig
     if input_year.isnumeric() and len(wallet_addresses)>0:
@@ -634,7 +693,7 @@ def update_projection_display(input_year,wallet_addresses):
 if __name__ == "__main__":
     #app.run_server(debug=True) # THIS LINE OR SOMETHING SIMILAR WILL BE USED IN OTHER IDE's; NOTE THAT THE APP IS FORMATTED FOR EXTERNAL WINDOWS
     # I HAVE ONLY USED JUPYTER_LABS FOR THIS ASSIGNMENT; I CANNOT SPEAK ON OTHER IDE's
-    app.run_server(jupyter_mode='external',port=8993,debug=True)
+    app.run_server(jupyter_mode='external',port=8853,debug=True)
     
 # Misc. public Bitcoin wallet addresses to test (vary in loading time in the app; hit submit only once after pasting the wallet):
 # 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 1MoooPejE6wvAcZxMo6KMBbwKeeTY2gmqN, 1FFcPEB7ZdUdmkhYmKnNwT6rTCY7jYNWnW, 17etp8Jgk2RqBZHLDWMHejMXwkfYJsk8FX
