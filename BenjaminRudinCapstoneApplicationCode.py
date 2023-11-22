@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
+# In[107]:
 
 
 import pandas as pd
@@ -267,7 +267,7 @@ def get_wallet_data(bitcoin_address,transactions):
         value_list.append(value)
     session_state.filtered_all_wallet_df['Value'] = value_list
     
-def generate_graph(filtered_df,offset=None):  
+def generate_graph(filtered_df,offset=None,title=None):
 #     if len(filtered_df)==0:
 #         fig = px.line(session_state.filtered_all_wallet_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
 #               title='Time Series of "Value"',hover_data={"Value": ":$.2f", "Date": True})
@@ -277,36 +277,28 @@ def generate_graph(filtered_df,offset=None):
         
 #     if offset==False:
         
-    
-    
-    
-    
-    
-    # Find the index of the first non-zero 'amount' value
-    # Since the filtered_df has entries for all dates in Bitcoin's inception, most wallets usually do not have activity that early
-    # The graph displayed will be basically unreadable in these cases; thus, it makes sense to not show any entries until the first entry with an 'Amount' value above 0
-#     first_nonzero_index = filtered_df['Amount'].ne(0).idxmax()
-
-#     # Create a new DataFrame starting from the first non-zero 'amount'
-#     filtered_df = filtered_df.iloc[first_nonzero_index:]
-
+    if fig_title==None:
+        title = 'Time Series for Bitcoin Amount and USD Value'
+    # Specify RGB color to be used in much of the graph
+    darker_gold_color = 'rgb(184,134,11)'
     # Generate the graph
     fig = px.line(filtered_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
-              title='Time Series of "Value"',hover_data={"Value": ":$.2f", "Date": True})
-
-    darker_gold_color = 'rgb(184,134,11)'
-
+              title='Time Series of "Value"',hover_data={"Value": ":$.2f", "Date": True},color_discrete_sequence=['lightgrey'])
+   
     # Add Bitcoin Amount as a new trace
     fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df['Amount'], mode='lines',
                              name='Amount', yaxis='y2',line=dict(color=darker_gold_color,shape='spline'),
                              #hovertemplate='Date: %{x|%Y-%m-%d}<br>Amount: %{y:.8f}'))
-                             hovertemplate='Date: %{x|%b %d, %Y}<br>BTC Amount: %{y:,.8f}'))
-    # Customize the hover template to show Date, Value, and Bitcoin Amount
-    #fig.update_traces(hovertemplate='Date: %{x|%Y-%m-%d}<br>Value: $%{y:,.2f}<br>Amount: %{y2:.8f}', selector={'name': 'Value'})
-    #fig.update_traces(hovertemplate='bob: %{x|%Y-%m-%d}<br>Value: $%{y:,.2f}', selector={'name': 'Value'})
+                             hovertemplate='Date=%{x|%b %d, %Y}<br>Amount=%{y:,.8f}'))
 
     # Customize the layout for sleek y-axis ticks
     fig.update_layout(
+        legend=dict(
+            x=1.1,     # Set the x position to 1 (right)
+            y=1.2,     # Set the y position to 1 (top)
+            xanchor='right',  # Anchor the x position to the right of the legend box
+            yanchor='top'     # Anchor the y position to the top of the legend box
+        ),
         yaxis=dict(
             title='USD Value',
             tickmode='linear',
@@ -316,18 +308,15 @@ def generate_graph(filtered_df,offset=None):
             showgrid=False,       # Show grid lines on the y-axis
             gridcolor='lightgray',  # Color of grid lines
         ),
-        # yaxis=dict(
-        #     title='Value',
-        #     tickformat='$,.2f',  # Format y-axis ticks as currency with 2 decimal places
-        #     showgrid=True,       # Show grid lines on the y-axis
-        #     gridcolor='lightgray',  # Color of grid lines
-        # ),
         yaxis2=dict(
             title='BTC Amount',
             overlaying='y',
             side='right',
+            tickmode='linear',
+            tick0 = filtered_df['Amount'].min(), 
+            dtick=(filtered_df['Amount'].max() - filtered_df['Amount'].min()) / 4,
             showgrid=False,       # Hide grid lines on the y2-axis
-            tickformat=',.0f',    # Format y2-axis ticks with 8 decimal places
+            tickformat=',.10f',    # Format y2-axis ticks with 8 decimal places
         ),
         xaxis=dict(
             title='Date',
@@ -336,15 +325,16 @@ def generate_graph(filtered_df,offset=None):
         plot_bgcolor='black',   # Set the plot area background color to black
         font=dict(color=darker_gold_color)
     )
-
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode='lines', name='Value',
+                             marker=dict(color='lightgrey'), showlegend=True))
+    
     # Show the plot
     return fig
 
-    
-    
 # Initialize the Dash app object
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
+# Side card object that go on the left side of the page and show the wallet addresses input
 side_card = dbc.Card(dbc.CardBody([
     dbc.Label("Enter A Bitcoin Public Wallet Address", html_for = 'wallet_address_text_input'),
     dcc.Input(id = 'wallet_address_text_input', placeholder = 'Enter wallet address'),
@@ -355,18 +345,10 @@ side_card = dbc.Card(dbc.CardBody([
     ], style = {'height':'100%'})
 ]), style = {'height': '100vh'})
 
+# Time filter buttons that go above the wallet_graph
 buttons = [
     html.Br(),
     html.Br(),
-    # html.Button('1D', style={'border': '1px solid black'}),
-    # html.Button('5D', style={'border': '1px solid black'}),
-    # html.Button('1M', style={'border': '1px solid black'}),
-    # html.Button('3M', style={'border': '1px solid black'}),
-    # html.Button('6M', style={'border': '1px solid black'}),
-    # html.Button('YTD', style={'border': '1px solid black'}),
-    # html.Button('1Y', style={'border': '1px solid black'}),
-    # html.Button('5Y', style={'border': '1px solid black'}),
-    # html.Button('ALL', style={'border': '1px solid black'})
     html.Button('1D',id='1D_button', style={'border': '1px solid black'}),
     html.Button('5D',id='5D_button', style={'border': '1px solid black'}),
     html.Button('1M',id='1M_button', style={'border': '1px solid black'}),
@@ -378,28 +360,106 @@ buttons = [
     html.Button('ALL',id='ALL_button', style={'border': '1px solid black'})
 ]
 
-bitcoin_metrics = [
-    html.Div("Total Bitcoin Balance:",style={'font-weight':'bold'}),
-    dcc.Input(id='read-only-input', value='This is read-only', readOnly=True)
+graph_filter_level = html.Div([
+    html.Br(),
+    html.Br(),
+    dbc.Row([
+        dbc.Col([
+            html.Div("Level:", style={'font-weight': 'bold'}),
+        ], width={'size':1,'offset':5}), 
+        dbc.Col([
+            dcc.RadioItems(
+                id='portfolio-level',
+                options=[
+                    {'label': 'Individual Wallets', 'value': 'individual'},
+                    {'label': 'Portfolio', 'value': 'portfolio'},
+                ],
+                value='individual',
+                labelStyle={'display': 'inline','margin-right': '10px'},
+                inline=True,
+            ),
+        ], width=6),  # Column for the radio items
+    ])
+])
+# Portfolio metrics that go below the wallet_graph
+bitcoin_metrics1 = [
+    html.Div("Current Bitcoin Balance:",style={'font-weight':'bold'}),
+    dcc.Input(
+        id='current_bitcoin_balance',
+        value=0,
+        readOnly=True,
+        style={'text-align': 'center'}
+    )
 ]
 
-wallet_graph = dcc.Graph(id='wallet_graph')
-  
-    
+bitcoin_metrics2 = [
+    html.Div("Current Bitcoin USD Value:",style={'font-weight':'bold'}),
+    dcc.Input(
+        id='current_bitcoin_usd_value',
+        value=0,
+        readOnly=True,
+        style={'text-align': 'center'}
+    )
+]
+
+bitcoin_metrics3 = [
+    html.Div([
+        html.Div("Calculation Method:",style={'font-weight':'bold'}),
+    ], style={'margin-left': '20px'}),
+    dcc.Dropdown(
+        id='read-only-input',
+        options=['24hr-low','24hr-high','24hr-average'],
+        value='24hr-average',
+        style={'width': '200px', 'margin-left': '30px'}
+    )
+]
+
+# Create a default empty dataframe and graph to display on the Dash application's initial load
+empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Price':0}])
+empty_fig = px.line(empty_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
+                    title='Time Series of "Value"',hover_data={"Value": ":$.2f", "Date": True})
+wallet_graph = dcc.Graph(id='wallet_graph',figure=empty_fig)
+#wallet_graph = dcc.Graph(id='wallet_graph')
+
 app.layout = dbc.Container([
     dbc.Row([
         dbc.Col(side_card, width=3),  # Side card covering 3 columns
         dbc.Col([
             dbc.Row([
-                dbc.Col(html.Div(buttons), width=12)  # Offset of 1 and width 12 for the button div
-            ]),  # Remove gutters to avoid padding
-            wallet_graph,  # Your graph component
+                dbc.Col(html.Div(buttons), width=5),
+                dbc.Col(graph_filter_level,width=7)
+            ]),  
+            html.Div([
+                wallet_graph
+            ], style={'border': '2px solid rgb(184,134,11)'}),
             dbc.Row([
-                dbc.Col(bitcoin_metrics)
+                dbc.Col(bitcoin_metrics1,style={'text-align': 'center'}),
+                dbc.Col(bitcoin_metrics2,style={'text-align': 'center'}),
+                dbc.Col(bitcoin_metrics3,style={'text-align': 'center'})
             ])
         ], width=9)  # Content column covering 9 columns
     ])
 ])
+
+# app.layout = dbc.Container([
+#     dbc.Row([
+#         dbc.Col(side_card, width=3),  # Side card covering 3 columns
+#         dbc.Col([
+#             html.Div([  # Use an outer div to group both sets of components
+#                 dbc.Row([
+#                     dbc.Col(html.Div(buttons), width=6),
+#                     dbc.Col(html.Div(graph_filter_level), width=6)
+#                 ]),
+#                 wallet_graph,
+#                 dbc.Row([
+#                     dbc.Col(bitcoin_metrics1, style={'text-align': 'center'}),
+#                     dbc.Col(bitcoin_metrics2, style={'text-align': 'center'}),
+#                     dbc.Col(bitcoin_metrics3, style={'text-align': 'center'})
+#                 ])
+#             ])
+#         ], width=9)  # Content column covering 9 columns
+#     ])
+# ])
 # app.layout = dbc.Container([
 #     dbc.Row([
 #         dbc.Col(side_card, width=3),  # Side card covering 3 columns
@@ -429,21 +489,23 @@ app.layout = dbc.Container([
     Output('wallet_address_text_input','value'),
     Output('wallet_addresses','children'),
     Output('wallet_graph','figure',allow_duplicate=True),
+    Output('current_bitcoin_balance','value'),
+    Output('current_bitcoin_usd_value','value'),
     Input('wallet_address_submit_button','n_clicks'),
     State('wallet_address_text_input','value'),
     State('wallet_addresses','children'),
     prevent_initial_call=True
 )
 def update_wallet_address_display(n_clicks,input_value,wallet_addresses):
-    # Catching the callback triggered by the page's initial load
-    if n_clicks==0:
-        # Create an empty figure to return for display
-        fig = px.line(session_state.filtered_all_wallet_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
-              title='Time Series of "Value"',hover_data={"Value": ":$.2f", "Date": True})
+#     # Catching the callback triggered by the page's initial load
+#     if n_clicks==0:
+#         # Create an empty figure to return for display
+#         fig = px.line(session_state.filtered_all_wallet_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
+#               title='Time Series of "Value"',hover_data={"Value": ":$.2f", "Date": True})
         
-        # Returning empty values
-        return input_value,wallet_addresses,fig
-
+#         # Returning empty values
+#         return input_value,wallet_addresses,fig,0,10
+    
     if wallet_addresses is None:
         wallet_addresses = []
     if n_clicks > 0 and input_value:
@@ -454,7 +516,14 @@ def update_wallet_address_display(n_clicks,input_value,wallet_addresses):
         wallet_addresses.append(html.Div(input_value))
         input_value = ''
     fig = generate_graph(session_state.filtered_all_wallet_df)
-    return input_value,wallet_addresses,fig
+    
+    # Grab the current btc balance / usd value
+    # This is found by querying these respective columns in the last row of the session_state's filtered_all_wallet_df
+    curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
+    curr_usd_value = session_state.filtered_all_wallet_df['Value'].iloc[-1]
+    curr_usd_value = f"${curr_usd_value:.2f}"
+
+    return input_value,wallet_addresses,fig,curr_btc_balance,curr_usd_value
 
 @app.callback(
     Output('wallet_graph','figure',allow_duplicate=True),
@@ -480,6 +549,9 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
     days_offset = 0
     earliest_date = session_state.filtered_all_wallet_df['Date'].min()
     latest_date = session_state.filtered_all_wallet_df['Date'].max()
+    # print(earliest_date,latest_date)
+    # earliest_date = earliest_date.date()
+    # latest_date = latest_date.date()
     
     # Determine days_offset by what button is clicked
     if button_id == '1D_button':
@@ -496,10 +568,8 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
         # Get the current year and highest date in dataframe (current date); this could be hardcoded, but I want it to be dynamic 
         current_year = datetime.now().year
     
-        # Calculate the difference in days between january 1st of the same year as the latest date in the session_state's filtered_all_wallet_df dataframe
+        # Calculate the difference in days between january 1st of the same year and the latest date in the session_state's filtered_all_wallet_df dataframe
         start_of_year = datetime(current_year,1,1)
-        
-        # Calculate days_offset YTD as different between latest_date and start_of_year
         days_offset = (latest_date - start_of_year.date()).days 
     elif button_id == '1Y_button':
         days_offset = 365
@@ -508,7 +578,8 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
     elif button_id == 'ALL_button':
         days_offset = (latest_date - earliest_date).days
     
-    offset_days_back = latest_date - pd.DateOffset(days=days_offset)
+    # Retrieve the day equal to the latest_date minus the days_offset number of days
+    offset_days_back = (latest_date - pd.DateOffset(days=days_offset)).date()
     filtered_df = session_state.filtered_all_wallet_df[(session_state.filtered_all_wallet_df['Date'] >= offset_days_back) & (session_state.filtered_all_wallet_df['Date'] <= latest_date)]
     
     # Generate the graph including days_offset as a parameter to distinguish from the initial call in the update_wallet_address_display function
@@ -521,23 +592,6 @@ if __name__ == "__main__":
     
 # test values: 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, jfkdlsjfkdsl, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo
 # huge wallet apparently: 1FWQiwK27EnGXb6BiBMRLJvunJQZZPMcGd
-
-
-# In[26]:
-
-
-from datetime import date
-
-date_obj = date(2021, 10, 1)
-
-print(date_obj)
-
-
-# In[27]:
-
-
-current_year = datetime.now().year
-print(current_year)
 
 
 # In[ ]:
