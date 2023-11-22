@@ -1,18 +1,18 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[13]:
+# In[26]:
 
 
-import dash
-import dash_bootstrap_components as dbc
-from dash import dcc, html, Input, Output, callback, State
-import plotly.express as px
 import pandas as pd
 import numpy as np
 import requests
 import yfinance as yf
 from datetime import datetime, timedelta
+import dash
+import dash_bootstrap_components as dbc
+from dash import dcc, html, Input, Output, callback, State
+import plotly.express as px
 import plotly.graph_objects as go
 
 # Hard-code early BTC data that is not widely available; see comments on each price 
@@ -145,9 +145,9 @@ def validate_wallet(bitcoin_address):
     get_wallet_data(bitcoin_address,transactions)
     return True
 
-# Create a dataframe of the transactions and add them to the global df
+# Create a dataframe of the transactions and add them to the session_state's raw and filtered dataframes respectively
 def get_wallet_data(bitcoin_address,transactions):
-    global BTC_df
+    global BTC_df # Dash documentation suggests not using global variables if the variable will be changed by the user; BTC_df will never be changed
     wallet_df = pd.DataFrame(columns=['Date','Price','Amount','Value','Wallet'])
     total_balance = 0
     
@@ -173,28 +173,72 @@ def get_wallet_data(bitcoin_address,transactions):
         # Find the date in the BTC_df to pull the price on that date
         check_date = str(date)[:10]
         price_entry = BTC_df[BTC_df['Date'] == check_date]
-        price = price_entry['Avg Price'].iloc[0]
-        current_value = round(price*total_balance_in_BTC,2)
+        price = price_entry['Avg Price'].iloc[0] 
+        
+        
+        current_value = round(price*total_balance_in_BTC,2) # Probably should remove pricing for the time being; recalculate at final steps of filtering is easier
         new_row = pd.DataFrame([{'Date':date,'Price':price,'Value':current_value,'Amount':total_balance_in_BTC,'Wallet':bitcoin_address}])
+        
+        
         wallet_df = pd.concat([wallet_df,new_row],ignore_index=True)
-
+  
     # Format floats to 2 decimal places in the Value column
     pd.set_option('float_format', '{:f}'.format)
     wallet_df['Value'] = wallet_df['Value'].apply(lambda x: '{:.2f}'.format(x))
 
+    # Next, the df is normalized to include all dates from Bitcoin's inception to today
+    # If the date doesn't exist in the dataframe, an entry for the date is added, and it is set to the previous days latest entry
+    # This is needed in order to have Bitcoin portfolio-level holdings
+    # If this normalization was not done, dates that appear in one wallet but not the others would show as massive outliers in the time series and inaccurately portray Bitcoin holdings for that day
+    # Convert the 'Date' column to datetime objects and define start and end dates for the loop
+    wallet_df['Date'] = pd.to_datetime(wallet_df['Date'])
+    start_date = datetime(2009, 1, 3)    
+    end_date = datetime.today()
+
+    # Initialize an empty DataFrame to store intermediary results
+    result_df = pd.DataFrame(columns=wallet_df.columns)
+
+    # Initialize the previous_entry Series with 0s and the bitcoin_address as values
+    previous_entry = pd.Series({'Amount':0,'Price':0,'Value':0,'Wallet':bitcoin_address})
+    new_entries = []
+    # Loop through the date range
+    while start_date <= end_date:
+        date_check = start_date.date()
+        # If the date does not exist in the dataframe, add an entry using the previous_entry Series (as described previously)
+        if date_check not in wallet_df['Date'].dt.date.values:
+            #price = BTC_df.loc[BTC_df['Date'] == str(date_check), 'Avg Price'].values[0]
+            new_entries.append({'Date':start_date,
+                                'Amount':previous_entry['Amount'],
+                               # 'Price':price,
+                                'Price':BTC_df.loc[BTC_df['Date'] == str(date_check), 'Avg Price'].values[0],
+                                'Value':previous_entry['Value'],
+                                'Wallet':previous_entry['Wallet']})   
+        # The date exists; update the previous_entry to reflect this date's entry
+        else:
+            previous_entry = wallet_df[wallet_df['Date'].dt.date == date_check].iloc[-1]
+        start_date += timedelta(days=1)
+
+    result_df = pd.DataFrame(new_entries)
+
+    # Concatenate the original DataFrame and the result DataFrame
+    wallet_df = pd.concat([wallet_df, result_df],axis=0)
+
+    # Sort the DataFrame by 'Date' in ascending order; after this, the dataframe now contains the original entries and additional entries for missing dates 
+    wallet_df = wallet_df.sort_values(by='Date').reset_index(drop=True)
+
+    # The wallet_df now contains the original entries and additional entries for any missing dates in the range of Bitcoin's existence
+    # Concat the normalized wallet_df to the session_state's raw_all_wallet_df, which is stored throughout the life of the Dash session 
     session_state.raw_all_wallet_df = pd.concat([session_state.raw_all_wallet_df,wallet_df],axis=0)
     session_state.raw_all_wallet_df = session_state.raw_all_wallet_df.reset_index(drop=True)
     
-    # Create a copy of the session_state object's raw_all_wallet_df for use in this function
-    all_wallet_df = pd.DataFrame(session_state.raw_all_wallet_df)
+    # Create a copy of the session_state object's raw_all_wallet_df for use/maniuplation
+    all_wallet_df = pd.DataFrame(session_state.raw_all_wallet_df) 
     
-    # Set the 'Date' column to datetime instead of strings 
+    # Set the 'Date' column to datetime instead of strings and sort the 'Date" column in descending order
     all_wallet_df['Date'] = pd.to_datetime(all_wallet_df['Date'])
-
-    # Sort the DataFrame by 'Date' in descending order
     all_wallet_df = all_wallet_df.sort_values(by='Date', ascending=False)
 
-    # Initialize an empty DataFrame to store the results
+    # Initialize an empty DataFrame to store the filtering results (latest timestamp entry for each date of each unique wallet)
     latest_entries = pd.DataFrame(columns=all_wallet_df.columns)
 
     # Iterate through the sorted DataFrame and select the last entry for each combination of 'Wallet' and 'Date'
@@ -204,35 +248,94 @@ def get_wallet_data(bitcoin_address,transactions):
 
     # Reset the index of the resulting DataFrame; this dataframe contains the last entry for each unqiue wallet for each date
     latest_entries = latest_entries.reset_index(drop=True)
-    
-    # Sum each wallet for last entry of each date; gives a good high-level overview of Portfolio
-    latest_entries['Date'] = latest_entries['Date'].dt.date
 
-    # Step 2: Create a new DataFrame with summed 'Amount' and 'Value' for each unique date
-    session_state.filtered_all_wallet_df = latest_entries.groupby(['Date', 'Price'])[['Amount', 'Value']].sum(numeric_only=True).reset_index()
-    #session_state.filtered_all_wallet_df = latest_entries.groupby(['Date', 'Price'])[['Amount', 'Value']].sum().reset_index()
+    # Convert the date column to datetime objects for sorting / summation
+    latest_entries['Date'] = latest_entries['Date'].dt.date
     
+    # Sum the "amount" and "value" of all dates grouping by date and price
+    session_state.filtered_all_wallet_df = latest_entries.groupby(['Date', 'Price'])[['Amount', 'Value']].sum(numeric_only=True).reset_index()
+    
+    # The value here is technically incorrect; value should not be summed
+    # Recalculate the value by looping through the filtered_all_wallet_df and multiplying amount by price
     value_list = []
     
-    # Loop through the DataFrame and calculate the 'Value' for each row
+    # Loop through the DataFrame and calculate the 'Value' for each row; add the 'Value' column using the value_list
     for index, row in session_state.filtered_all_wallet_df.iterrows():
         amount = row['Amount']
         price = row['Price']
         value = round(amount*price,2)
         value_list.append(value)
-
-    # Add the calculated 'Value' list to the DataFrame
     session_state.filtered_all_wallet_df['Value'] = value_list
-    print(session_state.filtered_all_wallet_df.tail(20))
+    
+def generate_graph(filtered_df,offset=None):  
+    
+#     if offset==True:
+        
+#     if offset==False:
+        
+    
+    
+    
+    
+    
+    # Find the index of the first non-zero 'amount' value
+    # Since the filtered_df has entries for all dates in Bitcoin's inception, most wallets usually do not have activity that early
+    # The graph displayed will be basically unreadable in these cases; thus, it makes sense to not show any entries until the first entry with an 'Amount' value above 0
+    first_nonzero_index = filtered_df['Amount'].ne(0).idxmax()
 
-    # Now, 'summed_entries' contains one entry for each unique date with summed 'Amount' and 'Value'
-    #print(session_state.filtered_all_wallet_df)
-    
-    
-    
-    
-    
-    
+    # Create a new DataFrame starting from the first non-zero 'amount'
+    filtered_df = filtered_df.iloc[first_nonzero_index:]
+
+    # Generate the graph
+    fig = px.line(filtered_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
+              title='Time Series of "Value"',hover_data={"Value": ":$.2f", "Date": True})
+
+    darker_gold_color = 'rgb(184,134,11)'
+
+    # Add Bitcoin Amount as a new trace
+    fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df['Amount'], mode='lines',
+                             name='Amount', yaxis='y2',line=dict(color=darker_gold_color,shape='spline'),
+                             #hovertemplate='Date: %{x|%Y-%m-%d}<br>Amount: %{y:.8f}'))
+                             hovertemplate='Date: %{x|%b %d, %Y}<br>BTC Amount: %{y:,.8f}'))
+    # Customize the hover template to show Date, Value, and Bitcoin Amount
+    #fig.update_traces(hovertemplate='Date: %{x|%Y-%m-%d}<br>Value: $%{y:,.2f}<br>Amount: %{y2:.8f}', selector={'name': 'Value'})
+    #fig.update_traces(hovertemplate='bob: %{x|%Y-%m-%d}<br>Value: $%{y:,.2f}', selector={'name': 'Value'})
+
+    # Customize the layout for sleek y-axis ticks
+    fig.update_layout(
+        yaxis=dict(
+            title='USD Value',
+            tickmode='linear',
+            tick0=filtered_df['Value'].min(),  # Set the minimum value
+            dtick=(filtered_df['Value'].max() - filtered_df['Value'].min()) / 4,  # Calculate tick interval for 5 ticks
+            tickformat='$,.0f',  # Format y-axis ticks as currency with 2 decimal places
+            showgrid=False,       # Show grid lines on the y-axis
+            gridcolor='lightgray',  # Color of grid lines
+        ),
+        # yaxis=dict(
+        #     title='Value',
+        #     tickformat='$,.2f',  # Format y-axis ticks as currency with 2 decimal places
+        #     showgrid=True,       # Show grid lines on the y-axis
+        #     gridcolor='lightgray',  # Color of grid lines
+        # ),
+        yaxis2=dict(
+            title='BTC Amount',
+            overlaying='y',
+            side='right',
+            showgrid=False,       # Hide grid lines on the y2-axis
+            tickformat=',.0f',    # Format y2-axis ticks with 8 decimal places
+        ),
+        xaxis=dict(
+            title='Date',
+            showgrid=False),
+        paper_bgcolor='black',  # Set the background color to black
+        plot_bgcolor='black',   # Set the plot area background color to black
+        font=dict(color=darker_gold_color)
+    )
+
+    # Show the plot
+    return fig
+
 # Initialize the Dash app object
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -240,6 +343,7 @@ side_card = dbc.Card(dbc.CardBody([
     dbc.Label("Enter A Bitcoin Public Wallet Address", html_for = 'wallet_address_text_input'),
     dcc.Input(id = 'wallet_address_text_input', placeholder = 'Enter wallet address'),
     html.Button('Submit', id = 'wallet_address_submit_button', n_clicks = 0),
+    #html.Br(),
     html.Div([
         html.Div("Addresses added:",style={'font-weight':'bold'}),
         html.Div(id = 'wallet_addresses')
@@ -249,152 +353,131 @@ side_card = dbc.Card(dbc.CardBody([
 buttons = [
     html.Br(),
     html.Br(),
-    html.Button('1D', style={'border': '1px solid black'}),
-    html.Button('5D', style={'border': '1px solid black'}),
-    html.Button('1M', style={'border': '1px solid black'}),
-    html.Button('3M', style={'border': '1px solid black'}),
-    html.Button('6M', style={'border': '1px solid black'}),
-    html.Button('YTD', style={'border': '1px solid black'}),
-    html.Button('1Y', style={'border': '1px solid black'}),
-    html.Button('5Y', style={'border': '1px solid black'}),
-    html.Button('ALL', style={'border': '1px solid black'})
+    html.Button('1D',id='1D_button', style={'border': '1px solid black'}),
+    html.Button('5D',id='5D_button', style={'border': '1px solid black'}),
+    html.Button('1M',id='1M_button', style={'border': '1px solid black'}),
+    html.Button('3M',id='3M_button', style={'border': '1px solid black'}),
+    html.Button('6M',id='6M_button', style={'border': '1px solid black'}),
+    html.Button('YTD',id='YTD_button', style={'border': '1px solid black'}),
+    html.Button('1Y',id='1Y_button', style={'border': '1px solid black'}),
+    html.Button('5Y',id='5Y_button', style={'border': '1px solid black'}),
+    html.Button('ALL',id='ALL_button', style={'border': '1px solid black'})
 ]
 
-empty_graph = dcc.Graph(id='empty_graph', config={'displayModeBar': False})
+wallet_graph = dcc.Graph(id='wallet_graph')
     
 app.layout = dbc.Container([
     dbc.Row([
         dbc.Col(side_card, width=3),  # Side card covering 3 columns
         dbc.Col([
-            # Your content goes here (replace with your own components)
-            html.Div(buttons),
-            empty_graph],
-            width=9  # Content column covering 9 columns
-        )
+            dbc.Row([
+                dbc.Col(html.Div(buttons), width={'size':8,'offset':1})  # Offset of 1 and width 12 for the button div
+            ]),  # Remove gutters to avoid padding
+            wallet_graph  # Your graph component
+        ], width=9)  # Content column covering 9 columns
     ])
 ])
-# app.layout = html.Div([
+    
+# app.layout = dbc.Container([
 #     dbc.Row([
-#         dbc.Col(side_card,width=3),
-#         dbc.Col(
-#             dbc.Row([
-#                 dbc.Col(button,width={'size':1}) for button in buttons
-#             ])
+#         dbc.Col(side_card, width=3),  # Side card covering 3 columns
+#     ]),
+#     dbc.Row([
+#         #dbc.Col(buttons, width = {'size':2,'offset':3}),
+#         dbc.Col([
+#             # Your content goes here (replace with your own components)
+#             html.Div(buttons),
+#             wallet_graph],
+#             width=9  # Content column covering 9 columns
 #         )
 #     ])
-#     dbc.Row
-#     dbc.Row([dbc.Col(dcc.Input(id = 'test', placeholder = 'Enter wallet address'))]),
-
-#     dbc.Row([dbc.Col(button,width={'size':1}) for button in buttons])
-
+# ])
                      
 @app.callback(
     Output('wallet_address_text_input','value'),
     Output('wallet_addresses','children'),
+    Output('wallet_graph','figure'),
     Input('wallet_address_submit_button','n_clicks'),
     State('wallet_address_text_input','value'),
     State('wallet_addresses','children')
 )
 def update_wallet_address_display(n_clicks,input_value,wallet_addresses):
+    # Catching the callback triggered by the page's initial load
+    print(wallet_addresses)
+    if n_clicks==0:
+        # Create an empty figure to return for display
+        fig = px.line(session_state.filtered_all_wallet_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
+              title='Time Series of "Value"',hover_data={"Value": ":$.2f", "Date": True})
+        
+        # Returning empty values
+        return input_value,wallet_addresses,fig
+
     if wallet_addresses is None:
         wallet_addresses = []
     if n_clicks > 0 and input_value:
-        if validate_wallet(input_value): # separate these functions; check if wallet is valid. If so, in the next part, call the get_wallet_data function. From there, I can get the most updated total df to return from thsi callback to the fig div
+        if validate_wallet(input_value): 
             input_value = '-'+str(input_value)
         else: 
             input_value = 'INVALID-'+str(input_value)
         wallet_addresses.append(html.Div(input_value))
         input_value = ''
-    return input_value,wallet_addresses
+    fig = generate_graph(session_state.filtered_all_wallet_df)
+    print(session_state.raw_all_wallet_df)
+    print(session_state.filtered_all_wallet_df)
+    return input_value,wallet_addresses,fig
 
-# # Define the layout
-# app.layout = dbc.Container(
-#     [
-#         dbc.Row(
-#             [
-#                 dbc.Col(left_card),  # Left card
-#                 dbc.Col(
-#                     [
-#                         graph1,  # First graph
-#                         dbc.Row(
-#                             [
-#                                 dbc.Col(html.Div(bitcoin_balance_box), width={"size": 4, "order": 1}),  # Bitcoin balance box
-#                                 dbc.Col(html.Div(bitcoin_usd_box), width={"size": 4, "order": 2}),  # Bitcoin USD value box
-#                                 dbc.Col(html.Div(calculation_method_dropdown), width={"size": 4, "order": 3}),  # Calculation method dropdown
-#                             ],
-#                             className="mb-4 align-items-stretch",  # Use align-items-stretch to make columns of equal height
-#                         )
-#                     ],
-#                 )  # Graphs and additional components
-#             ],
-#             className="mb-4",
-#         ),
-#     ],
-#     fluid=True,
-# )
-# test values: 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, 1FWQiwK27EnGXb6BiBMRLJvunJQZZPMcGd, jfkdlsjfkdsl, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo
+# @app.callback(
+#     Output('wallet_graph','figure'),
+#     Input('1D_button','n_clicks'),
+#     Input('5D_button','n_clicks'),
+#     Input('1M_button','n_clicks'),
+#     Input('3M_button','n_clicks'),
+#     Input('6M_button','n_clicks'),
+#     Input('YTD_button','n_clicks'),
+#     Input('1Y_button','n_clicks'),
+#     Input('5Y_button','n_clicks'),
+#     Input('ALL_button','n_clicks'))
+# def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, clicks_ytd, clicks_1y, clicks_5y, clicks_all):
+#     days_offset = 0
+#     if clicks_1d>0:
+#         days_offset = 1
+#     if clicks_5d>0:
+#         days_offset = 5
+#     if clicks_1m>0:
+#         # Operating under the assumption that a month-span is always 30 days (which is not true)
+#         days_offset = 30
+#     if clicks_3m>0:
+#         days_offset = 90
+#     if clicks_6m>0:
+#         days_offset = 180
+#     if clicks_ytd>0:
+#         # Calculate the difference in days between january 1st of the same year as the latest date in the session_state's filtered_all_wallet_df dataframe
+#         days_offset = 365
+#     if clicks_1y>0:
+#         days_offset = 1
+#     if clicks_5y>0:
+#         days_offset = 1825
+
+#     # Find the most recent date in the DataFrame; filter by the calculated offset
+#     latest_date = session_state.filtered_all_wallet_df['Date'].max()
+#     offset_days_back = most_recent_date - pd.DateOffset(days=days_offset)
+
+#     # Filter the DataFrame for the date range from one day back to the most recent date
+#     filtered_df = session_state.filtered_all_wallet_df[(session_state.filtered_all_wallet_df['date'] >= offset_days_back) & (session_state.filtered_all_wallet_df['date'] <= latest_date)]
+    
+#     # Generate the graph including days_offset as a parameter to distinguish from the initial call in the update_wallet_address_display function
+#     fig = generate_graph(filtered_df,days_offset)
+#     return fig
 
 if __name__ == "__main__":
     #app.run_server(debug=True,port=8051)
     app.run_server(jupyter_mode='external')
+    
+# test values: 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, 1FWQiwK27EnGXb6BiBMRLJvunJQZZPMcGd, jfkdlsjfkdsl, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo
 
 
 # In[ ]:
 
 
-2023-04-04 27981.680000 0.000000
-1   2023-04-25 27911.240000 0.000000
-2   2023-04-29 29292.530000 0.000000
-3   2023-05-10 27638.200000 0.011280
-4   2023-05-13 26795.920000 0.046280
-5   2023-05-17 27217.140000 0.057780
-6   2023-05-21 26936.120000 0.063500
-7   2023-05-23 27040.840000 0.079280
-8   2023-05-25 26402.830000 0.096780
-9   2023-05-28 27478.400000 0.116731
-10  2023-06-03 27163.730000 0.134631
-11  2023-06-12 25918.390000 0.000000
-12  2023-06-23 30295.930000 0.003622
-13  2023-06-24 30628.720000 0.052622
-14  2023-07-31 29254.210000 0.053022
-15  2023-08-01 29453.300000 0.056822
-16  2023-08-04 29124.240000 0.087959
-17  2023-08-08 29472.760000 0.007822
-18  2023-08-09 29664.090000 0.007822
-19  2023-08-22 26081.200000 0.007822
-20  2023-08-29 26914.940000 0.007822
-21  2023-09-15 26571.260000 0.007822
-22  2023-09-16 26587.240000 0.007822
-23  2023-09-20 27171.120000 0.007822
-24  2023-09-28 26688.680000 0.007822
-25  2023-10-11 27132.700000 0.007822
 
-                Date   Amount    Value        Price  \
-0  2023-04-04 18:11:49 0.000000     0.00 27981.680000   
-1  2023-04-25 19:29:38 0.000000     0.00 27911.240000   
-2  2023-04-29 12:55:51 0.000000     0.00 29292.530000   
-3  2023-05-10 14:46:09 0.011280   311.76 27638.200000   
-4  2023-05-13 09:37:07 0.046280  1240.12 26795.920000   
-5  2023-05-17 08:43:18 0.057780  1572.61 27217.140000   
-6  2023-05-21 06:51:24 0.063500  1710.44 26936.120000   
-7  2023-05-23 07:46:31 0.079280  2143.80 27040.840000   
-8  2023-05-25 07:38:04 0.096780  2555.27 26402.830000   
-9  2023-05-28 05:28:26 0.116731  3207.59 27478.400000   
-10 2023-06-03 14:06:00 0.134631  3657.09 27163.730000   
-11 2023-06-12 18:32:04 0.000000     0.00 25918.390000   
-12 2023-06-23 10:51:55 0.003622   109.72 30295.930000   
-13 2023-06-24 17:38:11 0.052622  1611.74 30628.720000   
-14 2023-07-31 16:44:49 0.053022  1551.11 29254.210000   
-15 2023-08-01 09:45:58 0.056822  1673.59 29453.300000   
-16 2023-08-04 16:38:59 0.087959  2561.75 29124.240000   
-17 2023-08-08 18:53:25 0.007822   230.53 29472.760000   
-18 2023-08-09 13:18:35 0.007822   232.02 29664.090000   
-19 2023-08-22 10:51:39 0.007822   204.00 26081.200000   
-20 2023-08-29 18:33:11 0.007822   210.52 26914.940000   
-21 2023-09-15 13:10:36 0.007822   207.83 26571.260000   
-22 2023-09-16 17:51:58 0.007822   207.96 26587.240000   
-23 2023-09-20 18:27:29 0.007822   212.53 27171.120000   
-24 2023-09-28 12:22:46 0.007822   208.75 26688.680000   
-25 2023-10-11 19:12:36 0.007822   212.22 27132.700000   
-26 2023-10-11 19:45:51 0.000000     0.00 27132.700000  
 
