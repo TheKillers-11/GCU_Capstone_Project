@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[5]:
+# In[ ]:
 
 
 import pandas as pd
@@ -15,7 +15,8 @@ from dash import dcc, html, Input, Output, callback, State
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Hard-code 
+# Style for html.buttons
+button_style = {'background-color': 'black', 'color': 'rgb(184, 134, 11)', 'border': '1px solid rgb(184, 134, 11)'}
 
 # Hard-code early BTC data that is not widely available; see comments on each price 
 early_BTC_data = {2009: {'Open':0.01,'Close':0.01,'Avg Price':0.01}, # Arbitrary value using a penny as the price since BTC was basically unpriced/miniscule in price at this time
@@ -329,18 +330,18 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 # Side card object that go on the left side of the page and show the wallet addresses input
 side_card = dbc.Card(dbc.CardBody([
-    dbc.Label("Enter A Bitcoin Public Wallet Address", html_for = 'wallet_address_text_input'),
-    dcc.Input(id = 'wallet_address_text_input', placeholder = 'Enter wallet address'),
+    dbc.Label("Enter A Bitcoin Public Wallet Address", html_for = 'wallet_address_text_input', style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+    dcc.Input(id = 'wallet_address_text_input', placeholder = 'Enter wallet address', style=button_style),
     html.Button('Submit', id = 'wallet_address_submit_button', n_clicks = 0, style=button_style),
     html.Div([
-        html.Div("Addresses added:",style={'font-weight':'bold'}),
-        html.Div(id = 'wallet_addresses')
+        html.Div("Addresses added:",style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+        html.Div(id = 'wallet_addresses'),
+        html.Br(),
+        html.Button('Clear Wallets', id = 'wallet_address_clear_button', n_clicks = 0, style=button_style)
     ], style = {'height':'100%'})
-    #dbc.
-]), style = {'height': '100vh'})
+]), style = {'height': '100vh', 'background-color':'black','border':'2px solid rgb(184, 134, 11)'})
 
 # Time filter buttons that go above the wallet_graph
-button_style = {'background-color': 'black', 'color': 'rgb(184, 134, 11)', 'border': '1px solid rgb(184, 134, 11)'}
 buttons = [
     html.Br(),
     html.Br(),
@@ -378,38 +379,6 @@ graph_filter_level = html.Div([
     ])
 ])
 
-# Portfolio metrics that go below the wallet_graph
-bitcoin_metrics1 = [
-    html.Div("Current Bitcoin Balance:",style={'font-weight':'bold'}),
-    dcc.Input(
-        id='current_bitcoin_balance',
-        value=0,
-        readOnly=True,
-        style={'text-align': 'center'}
-    )
-]
-
-bitcoin_metrics2 = [
-    html.Div("Current Bitcoin USD Value:",style={'font-weight':'bold'}),
-    dcc.Input(
-        id='current_bitcoin_usd_value',
-        value=0,
-        readOnly=True,
-        style={'text-align': 'center'}
-    )
-]
-
-bitcoin_metrics3 = [
-    html.Div([
-        html.Div("Calculation Method:",style={'font-weight':'bold'}),
-    ], style={'margin-left': '20px'}),
-    dcc.Dropdown(
-        id='read-only-input',
-        options=['24hr-low','24hr-high','24hr-average'],
-        value='24hr-average',
-        style={'width': '200px', 'margin-left': '35px'}
-    )
-]
 
 # Create a default empty dataframe and graph to display on the Dash application's initial load
 empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Price':0}])
@@ -418,85 +387,134 @@ empty_fig = generate_graph(pd.DataFrame(),None,empty_df)
 # Object that contains the wallet_graph on the page; uses the generated empty figure initially
 wallet_graph = dcc.Graph(id='wallet_graph',figure=empty_fig)
 
-# Object for the linear regression year input on the page
-years = [str(year) for year in range(2024, 2040)]
-regression_input = [
-    html.Br(),
-    html.Br(),
-    html.Br(),
-    html.Div("Price Prediction Target Year:", style={'font-weight': 'bold','margin-left':'5px'}),
-    dcc.Dropdown(
-        id='regression_target_year',
-        options=[{'label': year, 'value': year} for year in years],
-        placeholder='Select a future year.',
-        style={'width':'195px','text-align': 'center', 'margin-left':'35px'}
-    ),
-    html.Br(),
-]
-
 # Object that contains the projection_graph on the page
 projection_graph = dcc.Graph(id='projection_graph')
 
-# Portfolio projection metrics that go below the projection graph
-bitcoin_projection_metrics1 = [
-    html.Br(),
-    html.Div("Bitcoin Balance Input:",style={'font-weight':'bold'}),
-    dcc.Input(
-        id='projection_bitcoin_balance',
-        value=0,
-        readOnly=True,
-        style={'text-align': 'center'}
-    )
-]
-
-bitcoin_projection_metrics2 = [
-    html.Br(),
-    html.Div("Projected Bitcoin USD Value:",style={'font-weight':'bold'}),
-    dcc.Input(
-        id='projected_bitcoin_usd_value',
-        value=0,
-        readOnly=True,
-        style={'text-align': 'center'}
-    )
-]
-
 # Design the Dash application's layout; pay attention to width's and objects being used 
-app.layout = dbc.Container([
+app.layout = html.Div([
     dbc.Row([
         dbc.Col(side_card, width=3), 
         dbc.Col([
             dbc.Row([
                 dbc.Col(html.Div(buttons), width=5),
                 dbc.Col(graph_filter_level,width=7)
+                
+                
+                
+               
+                
+                
+                
             ]),  
             html.Div([wallet_graph], style={'border': '2px solid rgb(184,134,11)'}),
+            
+            html.Br(),
+            # Portfolio metrics that go below the wallet_graph
+
             dbc.Row([
-                dbc.Col(bitcoin_metrics1, style={'text-align': 'center'}, width=3),
-                dbc.Col(bitcoin_metrics2, style={'text-align': 'center'}), # Not adding a width explicitely centers this object in the row
-                dbc.Col(bitcoin_metrics3, style={'text-align': 'center'}, width=3),
-            ]),
+                dbc.Col([
+                    dbc.Label("Current Bitcoin Balance:",html_for='current_bitcoin_balance',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+                    dcc.Input(
+                        id='current_bitcoin_balance',
+                        value=0,
+                        readOnly=True,
+                        style={'width': '200px','height':'35px','text-align': 'center'}
+                    )
+                ], width ={'offset':1,'size':3}),
+                dbc.Col([
+                    dbc.Label("Current Bitcoin USD Value:",html_for='current_bitcoin_usd_value',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+                    dcc.Input(
+                        id='current_bitcoin_usd_value',
+                        value=0,
+                        readOnly=True,
+                        style={'width': '200px','height':'35px','text-align': 'center'}
+                    )
+                ], width = 3),
+                dbc.Col([
+                    dbc.Label("Calculation Method:",html_for='read-only-input',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+                    dcc.Dropdown(
+                        id='read-only-input',
+                        options=['24hr-low','24hr-high','24hr-average'],
+                        value='24hr-average',
+                        style={'width': '200px','height':'35px'}
+                    )
+                ], width = 3)
+            ], justify = 'evenly'),  
+            
+            html.Br(),
+            html.Br(),
+            html.Br(),
             dbc.Row([
-                dbc.Col(regression_input, style={'text-align': 'center'},width=3)
-            ]),
+                dbc.Col([],width={'offset':1,'size':3}),
+                dbc.Col([
+                    dbc.Label("Price Prediction Target Year:",html_for='regression_target_year',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+                    dcc.Dropdown(
+                        id='regression_target_year',
+                        options=[{'label': year, 'value': year} for year in [str(year) for year in range(2024, 2040)]],
+                        placeholder='Select a future year.',
+                        style={'width':'200px','text-align': 'center'}
+                    ), 
+                ], width = 3),
+                dbc.Col([],width=3)
+            ], justify = 'evenly'),
+            
+            html.Br(),
             html.Div([
                 html.Div([projection_graph],style={'border': '2px solid rgb(184,134,11)'}),
+                html.Br(),
+                # Portfolio projection metrics that go below the projection graph
                 dbc.Row([
-                    dbc.Col(bitcoin_projection_metrics1, style={'text-align': 'center'},width=3),
-                    dbc.Col(bitcoin_projection_metrics2, style={'text-align': 'center'},width={'size':3,'offset':1}),
-                ]),
-            ], id='projection_graph_div',style={'display':'none'})  
+                    dbc.Col([
+                        dbc.Label("Bitcoin Balance Used in Projection:",html_for='projection_bitcoin_balance',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+                        dcc.Input(
+                            id='projection_bitcoin_balance',
+                            value=0,
+                            readOnly=True,
+                            style={'width':'200px','text-align': 'center'}
+                        )
+                    ], width = {'offset':1,'size':3}),
+                    dbc.Col([
+                        dbc.Label("Projected Bitcoin USD Value:",html_for='projected_bitcoin_usd_value',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+                        dcc.Input(
+                            id='projected_bitcoin_usd_value',
+                            value=0,
+                            readOnly=True,
+                            style={'width':'200px','text-align': 'center'}
+                        )
+                    ], width = 3),
+                ], justify = 'evenly'),
+            ], id='projection_graph_div',style={'display':'none'}),
+            html.Br(),
+            html.Br(),
+            html.Br(),
         ], width=9)
     ])
-], fluid = True)
+], style={'width':'100%','background-color': 'black'})
+    
+@app.callback(
+    Output('wallet_addresses','children',allow_duplicate=True),
+    Output('wallet_graph','figure',allow_duplicate=True),
+    Output('current_bitcoin_balance','value',allow_duplicate=True),
+    Output('projection_bitcoin_balance','value',allow_duplicate=True),
+    Output('current_bitcoin_usd_value','value',allow_duplicate=True),
+    # Level radio items
+    # Calculation Method
+    # Price Prediction Target Year... drop that whole div? 
+    Input('wallet_address_clear_button','n_clicks'),
+    prevent_initial_call=True)
+def reset_application(n_clicks):
+    if n_clicks>0:
+        return [],empty_fig,0,0,0,0,
+    
     
 # Callback that tracks the user wallets added and processes them (adds them to the page, generates graphs, generates session_state's dataframes for the wallet)
 @app.callback(
-    Output('wallet_address_text_input','value'),
-    Output('wallet_addresses','children'),
+    Output('wallet_address_text_input','value',allow_duplicate=True),
+    Output('wallet_addresses','children',allow_duplicate=True),
     Output('wallet_graph','figure',allow_duplicate=True), # By default, objects should not used as output in multiple callbacks; have to allow duplicates manually
-    Output('current_bitcoin_balance','value'),
-    Output('projection_bitcoin_balance','value'),
-    Output('current_bitcoin_usd_value','value'),
+    Output('current_bitcoin_balance','value',allow_duplicate=True),
+    Output('projection_bitcoin_balance','value',allow_duplicate=True),
+    Output('current_bitcoin_usd_value','value',allow_duplicate=True),
     Input('wallet_address_submit_button','n_clicks'),
     State('wallet_address_text_input','value'),
     State('wallet_addresses','children'),
@@ -510,7 +528,7 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses):
             input_value = '-'+str(input_value)
         else: 
             input_value = 'INVALID-'+str(input_value)
-        wallet_addresses.append(html.Div(input_value))
+        wallet_addresses.append(html.Div(input_value,style={'color': 'rgb(184, 134, 11)'}))
         input_value = ''
     fig = generate_graph(session_state.filtered_all_wallet_df)
     
@@ -537,10 +555,7 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses):
 def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, clicks_ytd, clicks_1y, clicks_5y, clicks_all):
     # Check and store which input triggered the callback
     ctx = dash.callback_context
-    if not ctx.triggered:
-        button_id = None
-    else:
-        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = None if not ctx.triggered else ctx.triggered[0]['prop_id'].split('.')[0]
         
     # Initialize the days_offset for filtering to 0; grab the earliest and latest dates in the session_state's filtered_all_wallet_df 
     days_offset = 0
@@ -604,7 +619,7 @@ def update_projection_display(input_year,wallet_addresses):
 if __name__ == "__main__":
     #app.run_server(debug=True) # THIS LINE OR SOMETHING SIMILAR WILL BE USED IN OTHER IDE's; NOTE THAT THE APP IS FORMATTED FOR EXTERNAL WINDOWS
     # I HAVE ONLY USED JUPYTER_LABS FOR THIS ASSIGNMENT; I CANNOT SPEAK ON OTHER IDE's
-    app.run_server(jupyter_mode='external',port=8053)
+    app.run_server(jupyter_mode='external',port=8153,debug=True)
     
 # Misc. public Bitcoin wallet addresses to test (vary in loading time in the app; hit submit only once after pasting the wallet):
 # 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 1MoooPejE6wvAcZxMo6KMBbwKeeTY2gmqN, 1FFcPEB7ZdUdmkhYmKnNwT6rTCY7jYNWnW, 17etp8Jgk2RqBZHLDWMHejMXwkfYJsk8FX
