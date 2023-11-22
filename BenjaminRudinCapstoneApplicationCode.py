@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[24]:
+# In[20]:
 
 
 import pandas as pd
@@ -289,15 +289,19 @@ def get_wallet_data(bitcoin_address,transactions):
 
     
     
-def generate_graph(filtered_df_in,price_type,button_id=None):
+def generate_graph(filtered_df_in, price_type, button_id=None):
     # if an emtpy filtered_df is passed, generate an empty figure
     #if filtered_df==None or len(filtered_df)>0:
+    print(filtered_df_in)
+    print(price_type)
+    print(button_id)
     filtered_df = None 
     if filtered_df_in.empty:
         filtered_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Low Value':0,'Avg Value':0,'High Value':0,'Low':0,'Avg Price':0,'High':0}])
     else:
         filtered_df = filtered_df_in.copy()
     price_map = {'24hr-low':'Low', '24hr-average':'Avg Price', '24hr-high':'High'}
+    print(price_type)
     price_col = price_map[price_type]
     filtered_df['Value'] = filtered_df['Amount'] * filtered_df[price_col]
     usd_val = filtered_df['Value'].iloc[-1]
@@ -557,24 +561,35 @@ def reset_application(n_clicks):
     if n_clicks>0:
         session_state.raw_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Low', 'Avg Price', 'High', 'Wallet'])
         session_state.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Low', 'Avg Price', 'High', 'Wallet'])
-        return None,'0 Addresses Added:',[],'portfolio',empty_fig,0,0,'24hr-average',None,None,0,0,{'display':'none'}
+        return [None,
+                '0 Addresses Added:',
+                [],
+                'portfolio',
+                generate_graph(session_state.filtered_all_wallet_df,'24hr-average')[0],
+                0,
+                0,
+                '24hr-average',
+                None,
+                None,
+                0,
+                0,
+                {'display':'none'}]
 
 # # Callback to change graph 1 based on calculation method selected
-# @app.callback(
-#     Output('wallet_graph','figure',allow_duplicate=True), # By default, objects should not used as output in multiple callbacks; have to allow duplicates manually
-#     Output('current_bitcoin_balance','value',allow_duplicate=True),
-#     Output('projection_bitcoin_balance','value',allow_duplicate=True),
-#     Output('current_bitcoin_usd_value','value',allow_duplicate=True),
-#     Input('price_type_dropdown','value',allow_duplicate=True),
-#     State('wallet_addresses','children'),
-#     prevent_initial_call=True)
-# def change_price_calculation(price_type,wallet_addresses):
-#     if len(wallet_addresses)>0:
-#         fig = generate_graph(session_state.filtered_all_wallet_df,price_type)
-#         curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
-#         curr_usd_value = session_state.filtered_all_wallet_df['Value'].iloc[-1]
-#         curr_usd_value = f"${curr_usd_value:.2f}"
-#         return fig,curr_btc_balance,curr_btc_balance,curr_usd_value
+@app.callback(
+    Output('wallet_graph','figure',allow_duplicate=True), # By default, objects should not used as output in multiple callbacks; have to allow duplicates manually
+    Output('current_bitcoin_balance','value',allow_duplicate=True),
+    Output('projection_bitcoin_balance','value',allow_duplicate=True),
+    Output('current_bitcoin_usd_value','value',allow_duplicate=True),
+    Input('price_type_dropdown','value'),
+    State('wallet_addresses','children'),
+    prevent_initial_call=True)
+def change_price_calculation(price_type,wallet_addresses):
+    if len(wallet_addresses)>0:
+        fig,curr_usd_value = generate_graph(session_state.filtered_all_wallet_df,price_type)
+        curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
+        curr_usd_value = f"${curr_usd_value:.2f}"
+        return fig,curr_btc_balance,curr_btc_balance,curr_usd_value
 
 # Callback that tracks the user wallets added and processes them (adds them to the page, generates graphs, generates session_state's dataframes for the wallet)
 @app.callback(
@@ -603,14 +618,10 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type):
         input_value = ''
     #print(session_state.filtered_all_wallet_df)
     #fig = generate_graph(session_state.filtered_all_wallet_df)
-    fig,curr_usd_value = generate_graph(session_state.filtered_all_wallet_df,price_type)
-    print('got past this error')
+    fig,curr_usd_value = generate_graph(session_state.filtered_all_wallet_df,price_type,None)
     
     # Grab the current btc balance / usd value by querying these respective columns in the last row of the session_state's filtered_all_wallet_df
     curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
-    print('this must be')
-    #curr_usd_value = session_state.filtered_all_wallet_df['Value'].iloc[-1]
-    print('is this the error')
     curr_usd_value = f"${curr_usd_value:.2f}"
 
     return input_value,wallet_addresses,fig,curr_btc_balance,curr_btc_balance,curr_usd_value
@@ -677,14 +688,17 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
 @app.callback(
     Output('projection_graph_div','style'),
     Output('projection_graph','figure'),
+    Input('wallet_addresses_clear_button','n_clicks'),
     Input('projection_target_year','value'),
     State('wallet_addresses','children'),
     prevent_initial_call=True
 )
-def update_projection_display(input_year,wallet_addresses):
+def update_projection_display(n_clicks,input_year,wallet_addresses):
+    # if n_clicks > 0:
+    #     raise PreventUpdate
     # The below code is a placeholder for now, just returning an empty graph similar to the first graph when the page loads initially
     empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Low':0,'Avg Price':0,'High':0}])
-    empty_fig = generate_graph(empty_df,None,empty_df)
+    empty_fig = generate_graph(empty_df,'24hr-average')[0]
     if input_year==None:
         return {'display':'none'},empty_fig
     if wallet_addresses==None:
