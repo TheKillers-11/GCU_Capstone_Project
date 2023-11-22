@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[20]:
+# In[5]:
 
 
 import pandas as pd
@@ -265,11 +265,8 @@ def get_wallet_data(bitcoin_address,transactions):
     latest_entries['Date'] = latest_entries['Date'].dt.date
     
     # Sum the "amount" and "value" of all dates grouping by date and price
-    #print('test 1')
-   # print(latest_entries)
-    #print(latest_entries.groupby(['Date', 'Low','Avg Price','High'])[['Amount']].sum(numeric_only=True).reset_index())
     session_state.filtered_all_wallet_df = latest_entries.groupby(['Date','Low','Avg Price','High'])[['Amount']].sum(numeric_only=True).reset_index() # This may need to have low and high? 
-    #print('test 2')
+   
    # print(session_state.filtered_all_wallet_df)
     # The value here is technically incorrect; value should not be summed
     # Recalculate the value by looping through the filtered_all_wallet_df and multiplying amount by price
@@ -284,24 +281,16 @@ def get_wallet_data(bitcoin_address,transactions):
     #     #value_list.append(value)
     # session_state.filtered_all_wallet_df['Value'] = value_list
     
-    
 #def generate_graph(filtered_df,button_id=None,empty_df=None): should probably take radio items, and an additional df as well here? 
-
-    
-    
 def generate_graph(filtered_df_in, price_type, button_id=None):
     # if an emtpy filtered_df is passed, generate an empty figure
     #if filtered_df==None or len(filtered_df)>0:
-    print(filtered_df_in)
-    print(price_type)
-    print(button_id)
     filtered_df = None 
     if filtered_df_in.empty:
         filtered_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Low Value':0,'Avg Value':0,'High Value':0,'Low':0,'Avg Price':0,'High':0}])
     else:
         filtered_df = filtered_df_in.copy()
     price_map = {'24hr-low':'Low', '24hr-average':'Avg Price', '24hr-high':'High'}
-    print(price_type)
     price_col = price_map[price_type]
     filtered_df['Value'] = filtered_df['Amount'] * filtered_df[price_col]
     usd_val = filtered_df['Value'].iloc[-1]
@@ -318,7 +307,7 @@ def generate_graph(filtered_df_in, price_type, button_id=None):
     # Generate the graph
     fig = px.line(filtered_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
               title=fig_title,hover_data={"Value": ":$.2f", "Date": True},color_discrete_sequence=['lightgrey'])
-    print('got here 2')
+
     # Add Bitcoin Amount as a new trace
     fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df['Amount'], mode='lines',
                              name='Amount', yaxis='y2',line=dict(color=darker_gold_color,shape='spline'),
@@ -362,7 +351,7 @@ def generate_graph(filtered_df_in, price_type, button_id=None):
     # Add another trace so that "Value" appears on the legend
     fig.add_trace(go.Scatter(x=[None], y=[None], mode='lines', name='Value',
                              marker=dict(color='lightgrey'), showlegend=True))
-    
+    print(session_state.raw_all_wallet_df)
     # Show the plot
     return fig,usd_val
 
@@ -382,27 +371,6 @@ side_card = dbc.Card(dbc.CardBody([
     ], style = {'height':'100%'})
 ]), style = {'height': '100vh', 'background-color':'black','border':'2px solid rgb(184, 134, 11)'})
 
-# Time filter buttons that go above the wallet_graph
-buttons = [
-    html.Br(),
-    html.Br(),
-    html.Button('1D',id='1D_button', style=button_style),
-    html.Button('5D',id='5D_button', style=button_style),
-    html.Button('1M',id='1M_button', style=button_style),
-    html.Button('3M',id='3M_button', style=button_style),
-    html.Button('6M',id='6M_button', style=button_style),
-    html.Button('YTD',id='YTD_button', style=button_style),
-    html.Button('1Y',id='1Y_button', style=button_style),
-    html.Button('5Y',id='5Y_button', style=button_style),
-    html.Button('ALL',id='ALL_button', style=button_style)
-]
-
-# Object that contains the wallet_graph on the page; uses the generated empty figure initially
-#wallet_graph = dcc.Graph(id='wallet_graph',figure=empty_fig)
-
-# Object that contains the projection_graph on the page
-
-
 # Design the Dash application's layout; pay attention to width's and objects being used 
 app.layout = html.Div([
     dbc.Row([
@@ -413,7 +381,22 @@ app.layout = html.Div([
             dbc.Row([
                 
                 # Chart Filtering Buttons
-                dbc.Col(html.Div(buttons), width=5),
+                dbc.Col([
+                    html.Div([
+                        # Time filter buttons that go above the wallet_graph
+                        html.Br(),
+                        html.Br(),
+                        html.Button('1D',id='1D_button', style=button_style),
+                        html.Button('5D',id='5D_button', style=button_style),
+                        html.Button('1M',id='1M_button', style=button_style),
+                        html.Button('3M',id='3M_button', style=button_style),
+                        html.Button('6M',id='6M_button', style=button_style),
+                        html.Button('YTD',id='YTD_button', style=button_style),
+                        html.Button('1Y',id='1Y_button', style=button_style),
+                        html.Button('5Y',id='5Y_button', style=button_style),
+                        html.Button('ALL',id='ALL_button', style=button_style)
+                    ])
+                ], width=5),
                 dbc.Col([
                     html.Div([
                         html.Br(),
@@ -442,6 +425,8 @@ app.layout = html.Div([
                 ], width = 7)
             ]),
             html.Div([
+                
+                # Object that contains the wallet_graph on the page; uses the generated empty figure initially
                 dcc.Graph(id='wallet_graph',
                           figure=generate_graph(session_state.filtered_all_wallet_df,'24hr-average')[0]
                          )
@@ -498,6 +483,8 @@ app.layout = html.Div([
             
             html.Br(),
             html.Div([
+                
+                # Object that contains the projection_graph on the page
                 html.Div([dcc.Graph(id='projection_graph')],style={'border': '2px solid rgb(184,134,11)'}),
                 html.Br(),
                 
@@ -585,11 +572,13 @@ def reset_application(n_clicks):
     State('wallet_addresses','children'),
     prevent_initial_call=True)
 def change_price_calculation(price_type,wallet_addresses):
+    fig,curr_usd_value = generate_graph(session_state.filtered_all_wallet_df,price_type)
     if len(wallet_addresses)>0:
-        fig,curr_usd_value = generate_graph(session_state.filtered_all_wallet_df,price_type)
         curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
         curr_usd_value = f"${curr_usd_value:.2f}"
         return fig,curr_btc_balance,curr_btc_balance,curr_usd_value
+    else:
+        return fig,0,0,0
 
 # Callback that tracks the user wallets added and processes them (adds them to the page, generates graphs, generates session_state's dataframes for the wallet)
 @app.callback(
