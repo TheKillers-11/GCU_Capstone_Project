@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[26]:
+# In[2]:
 
 
 import pandas as pd
@@ -181,7 +181,7 @@ def get_wallet_data(bitcoin_address,transactions):
         
         
         wallet_df = pd.concat([wallet_df,new_row],ignore_index=True)
-  
+
     # Format floats to 2 decimal places in the Value column
     pd.set_option('float_format', '{:f}'.format)
     wallet_df['Value'] = wallet_df['Value'].apply(lambda x: '{:.2f}'.format(x))
@@ -281,10 +281,10 @@ def generate_graph(filtered_df,offset=None):
     # Find the index of the first non-zero 'amount' value
     # Since the filtered_df has entries for all dates in Bitcoin's inception, most wallets usually do not have activity that early
     # The graph displayed will be basically unreadable in these cases; thus, it makes sense to not show any entries until the first entry with an 'Amount' value above 0
-    first_nonzero_index = filtered_df['Amount'].ne(0).idxmax()
+#     first_nonzero_index = filtered_df['Amount'].ne(0).idxmax()
 
-    # Create a new DataFrame starting from the first non-zero 'amount'
-    filtered_df = filtered_df.iloc[first_nonzero_index:]
+#     # Create a new DataFrame starting from the first non-zero 'amount'
+#     filtered_df = filtered_df.iloc[first_nonzero_index:]
 
     # Generate the graph
     fig = px.line(filtered_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
@@ -336,6 +336,8 @@ def generate_graph(filtered_df,offset=None):
     # Show the plot
     return fig
 
+    
+    
 # Initialize the Dash app object
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -343,7 +345,6 @@ side_card = dbc.Card(dbc.CardBody([
     dbc.Label("Enter A Bitcoin Public Wallet Address", html_for = 'wallet_address_text_input'),
     dcc.Input(id = 'wallet_address_text_input', placeholder = 'Enter wallet address'),
     html.Button('Submit', id = 'wallet_address_submit_button', n_clicks = 0),
-    #html.Br(),
     html.Div([
         html.Div("Addresses added:",style={'font-weight':'bold'}),
         html.Div(id = 'wallet_addresses')
@@ -353,15 +354,15 @@ side_card = dbc.Card(dbc.CardBody([
 buttons = [
     html.Br(),
     html.Br(),
-    html.Button('1D',id='1D_button', style={'border': '1px solid black'}),
-    html.Button('5D',id='5D_button', style={'border': '1px solid black'}),
-    html.Button('1M',id='1M_button', style={'border': '1px solid black'}),
-    html.Button('3M',id='3M_button', style={'border': '1px solid black'}),
-    html.Button('6M',id='6M_button', style={'border': '1px solid black'}),
-    html.Button('YTD',id='YTD_button', style={'border': '1px solid black'}),
-    html.Button('1Y',id='1Y_button', style={'border': '1px solid black'}),
-    html.Button('5Y',id='5Y_button', style={'border': '1px solid black'}),
-    html.Button('ALL',id='ALL_button', style={'border': '1px solid black'})
+    html.Button('1D', style={'border': '1px solid black'}),
+    html.Button('5D', style={'border': '1px solid black'}),
+    html.Button('1M', style={'border': '1px solid black'}),
+    html.Button('3M', style={'border': '1px solid black'}),
+    html.Button('6M', style={'border': '1px solid black'}),
+    html.Button('YTD', style={'border': '1px solid black'}),
+    html.Button('1Y', style={'border': '1px solid black'}),
+    html.Button('5Y', style={'border': '1px solid black'}),
+    html.Button('ALL', style={'border': '1px solid black'})
 ]
 
 wallet_graph = dcc.Graph(id='wallet_graph')
@@ -370,28 +371,13 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col(side_card, width=3),  # Side card covering 3 columns
         dbc.Col([
-            dbc.Row([
-                dbc.Col(html.Div(buttons), width={'size':8,'offset':1})  # Offset of 1 and width 12 for the button div
-            ]),  # Remove gutters to avoid padding
-            wallet_graph  # Your graph component
-        ], width=9)  # Content column covering 9 columns
+            # Your content goes here (replace with your own components)
+            html.Div(buttons),
+            wallet_graph],
+            width=9  # Content column covering 9 columns
+        )
     ])
 ])
-    
-# app.layout = dbc.Container([
-#     dbc.Row([
-#         dbc.Col(side_card, width=3),  # Side card covering 3 columns
-#     ]),
-#     dbc.Row([
-#         #dbc.Col(buttons, width = {'size':2,'offset':3}),
-#         dbc.Col([
-#             # Your content goes here (replace with your own components)
-#             html.Div(buttons),
-#             wallet_graph],
-#             width=9  # Content column covering 9 columns
-#         )
-#     ])
-# ])
                      
 @app.callback(
     Output('wallet_address_text_input','value'),
@@ -403,7 +389,6 @@ app.layout = dbc.Container([
 )
 def update_wallet_address_display(n_clicks,input_value,wallet_addresses):
     # Catching the callback triggered by the page's initial load
-    print(wallet_addresses)
     if n_clicks==0:
         # Create an empty figure to return for display
         fig = px.line(session_state.filtered_all_wallet_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
@@ -422,21 +407,19 @@ def update_wallet_address_display(n_clicks,input_value,wallet_addresses):
         wallet_addresses.append(html.Div(input_value))
         input_value = ''
     fig = generate_graph(session_state.filtered_all_wallet_df)
-    print(session_state.raw_all_wallet_df)
-    print(session_state.filtered_all_wallet_df)
     return input_value,wallet_addresses,fig
 
 # @app.callback(
-#     Output('wallet_graph','figure'),
-#     Input('1D_button','n_clicks'),
-#     Input('5D_button','n_clicks'),
-#     Input('1M_button','n_clicks'),
-#     Input('3M_button','n_clicks'),
-#     Input('6M_button','n_clicks'),
-#     Input('YTD_button','n_clicks'),
-#     Input('1Y_button','n_clicks'),
-#     Input('5Y_button','n_clicks'),
-#     Input('ALL_button','n_clicks'))
+#     Output('wallet_graph','figure')
+#     Input('1D','n_clicks'),
+#     Input('5D','n_clicks'),
+#     Input('1M',,'n_clicks'),
+#     Input('3M','n_clicks'),
+#     Input('6M','n_clicks'),
+#     Input('YTD','n_clicks'),
+#     Input('1Y','n_clicks'),
+#     Input('5Y','n_clicks'),
+#     Input('ALL','n_clicks'),
 # def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, clicks_ytd, clicks_1y, clicks_5y, clicks_all):
 #     days_offset = 0
 #     if clicks_1d>0:
@@ -467,13 +450,13 @@ def update_wallet_address_display(n_clicks,input_value,wallet_addresses):
     
 #     # Generate the graph including days_offset as a parameter to distinguish from the initial call in the update_wallet_address_display function
 #     fig = generate_graph(filtered_df,days_offset)
-#     return fig
 
 if __name__ == "__main__":
     #app.run_server(debug=True,port=8051)
-    app.run_server(jupyter_mode='external')
+    app.run_server(jupyter_mode='external',port=8059)
     
-# test values: 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, 1FWQiwK27EnGXb6BiBMRLJvunJQZZPMcGd, jfkdlsjfkdsl, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo
+# test values: 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, jfkdlsjfkdsl, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo
+# huge wallet apparently: 1FWQiwK27EnGXb6BiBMRLJvunJQZZPMcGd
 
 
 # In[ ]:
