@@ -181,7 +181,7 @@ def get_wallet_data(bitcoin_address,transactions):
         
         
         wallet_df = pd.concat([wallet_df,new_row],ignore_index=True)
-
+  
     # Format floats to 2 decimal places in the Value column
     pd.set_option('float_format', '{:f}'.format)
     wallet_df['Value'] = wallet_df['Value'].apply(lambda x: '{:.2f}'.format(x))
@@ -275,16 +275,19 @@ def generate_graph(filtered_df,offset=None):
         
     
     
-    
+    if len(filtered_df==0):
+        fig = px.line(session_state.filtered_all_wallet_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
+              title='Time Series of "Value"',hover_data={"Value": ":$.2f", "Date": True})
+        return fig
     
     
     # Find the index of the first non-zero 'amount' value
     # Since the filtered_df has entries for all dates in Bitcoin's inception, most wallets usually do not have activity that early
     # The graph displayed will be basically unreadable in these cases; thus, it makes sense to not show any entries until the first entry with an 'Amount' value above 0
-#     first_nonzero_index = filtered_df['Amount'].ne(0).idxmax()
+    first_nonzero_index = filtered_df['Amount'].ne(0).idxmax()
 
-#     # Create a new DataFrame starting from the first non-zero 'amount'
-#     filtered_df = filtered_df.iloc[first_nonzero_index:]
+    # Create a new DataFrame starting from the first non-zero 'amount'
+    filtered_df = filtered_df.iloc[first_nonzero_index:]
 
     # Generate the graph
     fig = px.line(filtered_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
@@ -336,8 +339,6 @@ def generate_graph(filtered_df,offset=None):
     # Show the plot
     return fig
 
-    
-    
 # Initialize the Dash app object
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -354,15 +355,15 @@ side_card = dbc.Card(dbc.CardBody([
 buttons = [
     html.Br(),
     html.Br(),
-    html.Button('1D', style={'border': '1px solid black'}),
-    html.Button('5D', style={'border': '1px solid black'}),
-    html.Button('1M', style={'border': '1px solid black'}),
-    html.Button('3M', style={'border': '1px solid black'}),
-    html.Button('6M', style={'border': '1px solid black'}),
-    html.Button('YTD', style={'border': '1px solid black'}),
-    html.Button('1Y', style={'border': '1px solid black'}),
-    html.Button('5Y', style={'border': '1px solid black'}),
-    html.Button('ALL', style={'border': '1px solid black'})
+    html.Button('1D',id='1D_button', style={'border': '1px solid black'}),
+    html.Button('5D',id='5D_button', style={'border': '1px solid black'}),
+    html.Button('1M',id='1M_button', style={'border': '1px solid black'}),
+    html.Button('3M',id='3M_button', style={'border': '1px solid black'}),
+    html.Button('6M',id='6M_button', style={'border': '1px solid black'}),
+    html.Button('YTD',id='YTD_button', style={'border': '1px solid black'}),
+    html.Button('1Y',id='1Y_button', style={'border': '1px solid black'}),
+    html.Button('5Y',id='5Y_button', style={'border': '1px solid black'}),
+    html.Button('ALL',id='ALL_button', style={'border': '1px solid black'})
 ]
 
 wallet_graph = dcc.Graph(id='wallet_graph')
@@ -371,13 +372,28 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col(side_card, width=3),  # Side card covering 3 columns
         dbc.Col([
-            # Your content goes here (replace with your own components)
-            html.Div(buttons),
-            wallet_graph],
-            width=9  # Content column covering 9 columns
-        )
+            dbc.Row([
+                dbc.Col(html.Div(buttons), width={'size':8,'offset':1})  # Offset of 1 and width 12 for the button div
+            ]),  # Remove gutters to avoid padding
+            wallet_graph  # Your graph component
+        ], width=9)  # Content column covering 9 columns
     ])
 ])
+    
+# app.layout = dbc.Container([
+#     dbc.Row([
+#         dbc.Col(side_card, width=3),  # Side card covering 3 columns
+#     ]),
+#     dbc.Row([
+#         #dbc.Col(buttons, width = {'size':2,'offset':3}),
+#         dbc.Col([
+#             # Your content goes here (replace with your own components)
+#             html.Div(buttons),
+#             wallet_graph],
+#             width=9  # Content column covering 9 columns
+#         )
+#     ])
+# ])
                      
 @app.callback(
     Output('wallet_address_text_input','value'),
@@ -409,54 +425,55 @@ def update_wallet_address_display(n_clicks,input_value,wallet_addresses):
     fig = generate_graph(session_state.filtered_all_wallet_df)
     return input_value,wallet_addresses,fig
 
-# @app.callback(
-#     Output('wallet_graph','figure')
-#     Input('1D','n_clicks'),
-#     Input('5D','n_clicks'),
-#     Input('1M',,'n_clicks'),
-#     Input('3M','n_clicks'),
-#     Input('6M','n_clicks'),
-#     Input('YTD','n_clicks'),
-#     Input('1Y','n_clicks'),
-#     Input('5Y','n_clicks'),
-#     Input('ALL','n_clicks'),
-# def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, clicks_ytd, clicks_1y, clicks_5y, clicks_all):
-#     days_offset = 0
-#     if clicks_1d>0:
-#         days_offset = 1
-#     if clicks_5d>0:
-#         days_offset = 5
-#     if clicks_1m>0:
-#         # Operating under the assumption that a month-span is always 30 days (which is not true)
-#         days_offset = 30
-#     if clicks_3m>0:
-#         days_offset = 90
-#     if clicks_6m>0:
-#         days_offset = 180
-#     if clicks_ytd>0:
-#         # Calculate the difference in days between january 1st of the same year as the latest date in the session_state's filtered_all_wallet_df dataframe
-#         days_offset = 365
-#     if clicks_1y>0:
-#         days_offset = 1
-#     if clicks_5y>0:
-#         days_offset = 1825
+@app.callback(
+    Output('wallet_graph','figure'),
+    Input('1D_button','n_clicks'),
+    Input('5D_button','n_clicks'),
+    Input('1M_button','n_clicks'),
+    Input('3M_button','n_clicks'),
+    Input('6M_button','n_clicks'),
+    Input('YTD_button','n_clicks'),
+    Input('1Y_button','n_clicks'),
+    Input('5Y_button','n_clicks'),
+    Input('ALL_button','n_clicks'))
+def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, clicks_ytd, clicks_1y, clicks_5y, clicks_all):
+    days_offset = 0
+    if clicks_1d>0:
+        days_offset = 1
+    if clicks_5d>0:
+        days_offset = 5
+    if clicks_1m>0:
+        # Operating under the assumption that a month-span is always 30 days (which is not true)
+        days_offset = 30
+    if clicks_3m>0:
+        days_offset = 90
+    if clicks_6m>0:
+        days_offset = 180
+    if clicks_ytd>0:
+        # Calculate the difference in days between january 1st of the same year as the latest date in the session_state's filtered_all_wallet_df dataframe
+        days_offset = 365
+    if clicks_1y>0:
+        days_offset = 1
+    if clicks_5y>0:
+        days_offset = 1825
 
-#     # Find the most recent date in the DataFrame; filter by the calculated offset
-#     latest_date = session_state.filtered_all_wallet_df['Date'].max()
-#     offset_days_back = most_recent_date - pd.DateOffset(days=days_offset)
+    # Find the most recent date in the DataFrame; filter by the calculated offset
+    latest_date = session_state.filtered_all_wallet_df['Date'].max()
+    offset_days_back = most_recent_date - pd.DateOffset(days=days_offset)
 
-#     # Filter the DataFrame for the date range from one day back to the most recent date
-#     filtered_df = session_state.filtered_all_wallet_df[(session_state.filtered_all_wallet_df['date'] >= offset_days_back) & (session_state.filtered_all_wallet_df['date'] <= latest_date)]
+    # Filter the DataFrame for the date range from one day back to the most recent date
+    filtered_df = session_state.filtered_all_wallet_df[(session_state.filtered_all_wallet_df['date'] >= offset_days_back) & (session_state.filtered_all_wallet_df['date'] <= latest_date)]
     
-#     # Generate the graph including days_offset as a parameter to distinguish from the initial call in the update_wallet_address_display function
-#     fig = generate_graph(filtered_df,days_offset)
+    # Generate the graph including days_offset as a parameter to distinguish from the initial call in the update_wallet_address_display function
+    fig = generate_graph(filtered_df,days_offset)
+    return fig
 
 if __name__ == "__main__":
     #app.run_server(debug=True,port=8051)
-    app.run_server(jupyter_mode='external',port=8059)
+    app.run_server(jupyter_mode='external',port=9099)
     
-# test values: 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, jfkdlsjfkdsl, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo
-# huge wallet apparently: 1FWQiwK27EnGXb6BiBMRLJvunJQZZPMcGd
+# test values: 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, , jfkdlsjfkdsl, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo
+# large wallet: 1FWQiwK27EnGXb6BiBMRLJvunJQZZPMcGd
 
 
 # In[ ]:
