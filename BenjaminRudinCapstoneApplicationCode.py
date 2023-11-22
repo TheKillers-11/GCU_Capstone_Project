@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[104]:
+# In[5]:
 
 
 import pandas as pd
@@ -14,6 +14,8 @@ import dash_bootstrap_components as dbc
 from dash import dcc, html, Input, Output, callback, State
 import plotly.express as px
 import plotly.graph_objects as go
+
+# Hard-code 
 
 # Hard-code early BTC data that is not widely available; see comments on each price 
 early_BTC_data = {2009: {'Open':0.01,'Close':0.01,'Avg Price':0.01}, # Arbitrary value using a penny as the price since BTC was basically unpriced/miniscule in price at this time
@@ -329,26 +331,28 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 side_card = dbc.Card(dbc.CardBody([
     dbc.Label("Enter A Bitcoin Public Wallet Address", html_for = 'wallet_address_text_input'),
     dcc.Input(id = 'wallet_address_text_input', placeholder = 'Enter wallet address'),
-    html.Button('Submit', id = 'wallet_address_submit_button', n_clicks = 0),
+    html.Button('Submit', id = 'wallet_address_submit_button', n_clicks = 0, style=button_style),
     html.Div([
         html.Div("Addresses added:",style={'font-weight':'bold'}),
         html.Div(id = 'wallet_addresses')
     ], style = {'height':'100%'})
+    #dbc.
 ]), style = {'height': '100vh'})
 
 # Time filter buttons that go above the wallet_graph
+button_style = {'background-color': 'black', 'color': 'rgb(184, 134, 11)', 'border': '1px solid rgb(184, 134, 11)'}
 buttons = [
     html.Br(),
     html.Br(),
-    html.Button('1D',id='1D_button', style={'border': '1px solid black'}),
-    html.Button('5D',id='5D_button', style={'border': '1px solid black'}),
-    html.Button('1M',id='1M_button', style={'border': '1px solid black'}),
-    html.Button('3M',id='3M_button', style={'border': '1px solid black'}),
-    html.Button('6M',id='6M_button', style={'border': '1px solid black'}),
-    html.Button('YTD',id='YTD_button', style={'border': '1px solid black'}),
-    html.Button('1Y',id='1Y_button', style={'border': '1px solid black'}),
-    html.Button('5Y',id='5Y_button', style={'border': '1px solid black'}),
-    html.Button('ALL',id='ALL_button', style={'border': '1px solid black'})
+    html.Button('1D',id='1D_button', style=button_style),
+    html.Button('5D',id='5D_button', style=button_style),
+    html.Button('1M',id='1M_button', style=button_style),
+    html.Button('3M',id='3M_button', style=button_style),
+    html.Button('6M',id='6M_button', style=button_style),
+    html.Button('YTD',id='YTD_button', style=button_style),
+    html.Button('1Y',id='1Y_button', style=button_style),
+    html.Button('5Y',id='5Y_button', style=button_style),
+    html.Button('ALL',id='ALL_button', style=button_style)
 ]
 
 # Filter selection that goes above the wallet_graph
@@ -498,7 +502,7 @@ app.layout = dbc.Container([
     State('wallet_addresses','children'),
     prevent_initial_call=True
 )
-def update_wallet_address_display(n_clicks,input_value,wallet_addresses):    
+def update_portfolio_display(n_clicks,input_value,wallet_addresses):    
     if wallet_addresses is None:
         wallet_addresses = []
     if n_clicks > 0 and input_value:
@@ -572,7 +576,7 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
     offset_days_back = (latest_date - pd.DateOffset(days=days_offset)).date()
     filtered_df = session_state.filtered_all_wallet_df[(session_state.filtered_all_wallet_df['Date'] >= offset_days_back) & (session_state.filtered_all_wallet_df['Date'] <= latest_date)]
     
-    # Generate the graph including button_id as a parameter to distinguish from the initial call in the update_wallet_address_display function
+    # Generate the graph including button_id as a parameter to distinguish from the initial call in the update_portflio_display function
     fig = generate_graph(filtered_df,button_id)
     return fig
 
@@ -585,7 +589,7 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
     State('wallet_addresses','children'),
     prevent_initial_call=True
 )
-def show_projection_graph(input_year,wallet_addresses):
+def update_projection_display(input_year,wallet_addresses):
     # The below code is a placeholder for now, just returning an empty graph similar to the first graph when the page loads initially
     empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Price':0}])
     empty_fig = generate_graph(pd.DataFrame(),None,empty_df)
@@ -602,26 +606,15 @@ if __name__ == "__main__":
     # I HAVE ONLY USED JUPYTER_LABS FOR THIS ASSIGNMENT; I CANNOT SPEAK ON OTHER IDE's
     app.run_server(jupyter_mode='external',port=8053)
     
-# Public Bitcoin wallet addresses to test (vary in loading time in the app; hit submit only once after pasting the wallet):
-# 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo
+# Misc. public Bitcoin wallet addresses to test (vary in loading time in the app; hit submit only once after pasting the wallet):
+# 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 1MoooPejE6wvAcZxMo6KMBbwKeeTY2gmqN, 1FFcPEB7ZdUdmkhYmKnNwT6rTCY7jYNWnW, 17etp8Jgk2RqBZHLDWMHejMXwkfYJsk8FX
 
-
-# In[113]:
-
-
-print("Pandas Version:", pd.__version__)
-print("NumPy Version:", np.__version__)
-print("Requests Version:", requests.__version__)
-print("yfinance Version:", yf.__version__)
-#print("datetime Version:", datetime.__version__) # not sure how to access the version easily here
-print("dash Version:", dash.__version__)
-print("dash_bootstrap_components Version:", dbc.__version__)
-#print("plotly.express Version:", px.__version__) # same problem
-#print("plotly.graph_objects Version:", go.__version__) # same problem
+# One of Binance's main wallets: this one contains a huge amount of BTC (fun to test)
+# 34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo
 
 
 # In[ ]:
 
 
-# wallet with huge number of transactions: 1FWQiwK27EnGXb6BiBMRLJvunJQZZPMcGd - dont test this, hits the Blockstream API too many times initially, runs extremely long (probably over an hour)
+
 
