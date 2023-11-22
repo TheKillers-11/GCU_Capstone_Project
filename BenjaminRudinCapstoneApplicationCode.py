@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[3]:
 
 
 import pandas as pd
@@ -330,14 +330,14 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 # Side card object that go on the left side of the page and show the wallet addresses input
 side_card = dbc.Card(dbc.CardBody([
-    dbc.Label("Enter A Bitcoin Public Wallet Address", html_for = 'wallet_address_text_input', style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
-    dcc.Input(id = 'wallet_address_text_input', placeholder = 'Enter wallet address', style=button_style),
+    dbc.Label("Enter A Bitcoin Public Wallet Address", html_for = 'wallet_addresses_text_input', style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+    dcc.Input(id = 'wallet_addresses_text_input', placeholder = 'Enter wallet address', style=button_style),
     html.Button('Submit', id = 'wallet_address_submit_button', n_clicks = 0, style=button_style),
     html.Div([
-        html.Div("Addresses added:",style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
+        html.Div("0 Addresses Added:",id='wallet_addresses_counter_and_label',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
         html.Div(id = 'wallet_addresses'),
         html.Br(),
-        html.Button('Clear Wallets', id = 'wallet_address_clear_button', n_clicks = 0, style=button_style)
+        html.Button('Clear Wallets', id = 'wallet_addresses_clear_button', n_clicks = 0, style=button_style)
     ], style = {'height':'100%'})
 ]), style = {'height': '100vh', 'background-color':'black','border':'2px solid rgb(184, 134, 11)'})
 
@@ -356,30 +356,6 @@ buttons = [
     html.Button('ALL',id='ALL_button', style=button_style)
 ]
 
-# Filter selection that goes above the wallet_graph
-graph_filter_level = html.Div([
-    html.Br(),
-    html.Br(),
-    dbc.Row([
-        dbc.Col([
-            html.Div("Level:", style={'font-weight': 'bold'}),
-        ], width={'size':1,'offset':5}), 
-        dbc.Col([
-            dcc.RadioItems(
-                id='portfolio-level',
-                options=[
-                    {'label': 'Portfolio', 'value': 'portfolio'},
-                    {'label': 'Individual Wallets', 'value': 'individual'}
-                ],
-                value='portfolio',
-                labelStyle={'display': 'inline','margin-right': '10px'},
-                inline=True,
-            ),
-        ], width=6),  # Column for the radio items
-    ])
-])
-
-
 # Create a default empty dataframe and graph to display on the Dash application's initial load
 empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Price':0}])
 empty_fig = generate_graph(pd.DataFrame(),None,empty_df)
@@ -393,24 +369,45 @@ projection_graph = dcc.Graph(id='projection_graph')
 # Design the Dash application's layout; pay attention to width's and objects being used 
 app.layout = html.Div([
     dbc.Row([
-        dbc.Col(side_card, width=3), 
+        
+        # Left Side Panel for Bitcoin Address Entry
+        dbc.Col(side_card, width=2), 
         dbc.Col([
             dbc.Row([
+                
+                # Chart Filtering Buttons
                 dbc.Col(html.Div(buttons), width=5),
-                dbc.Col(graph_filter_level,width=7)
-                
-                
-                
-               
-                
-                
-                
-            ]),  
+                dbc.Col([
+                    html.Div([
+                        html.Br(),
+                        html.Br(),
+                        
+                        # Radio Items for Portfolio / Individual Wallets Time Series View
+                        dbc.Row([
+                            dbc.Col([
+                                html.Div("View:", style={'font-weight':'bold', 'color':'rgb(184,134,11)'}),
+                            ], width={'size':1, 'offset':5}),
+                            dbc.Col([
+                                dcc.RadioItems(
+                                    id='filter_view_radio_items',
+                                    options=[
+                                        {'label':'Portfolio', 'value':'portfolio'},
+                                        {'label':'Individual Wallets', 'value':'individual'}
+                                    ],
+                                    value='portfolio',
+                                    labelStyle={'display':'inline', 'margin-right':'10px'},
+                                    inline=True,
+                                    style={'color':'rgb(184,134,11)'}
+                                )
+                            ], width=6)
+                        ])
+                    ])
+                ], width = 7)
+            ]),
             html.Div([wallet_graph], style={'border': '2px solid rgb(184,134,11)'}),
-            
             html.Br(),
+            
             # Portfolio metrics that go below the wallet_graph
-
             dbc.Row([
                 dbc.Col([
                     dbc.Label("Current Bitcoin Balance:",html_for='current_bitcoin_balance',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
@@ -436,7 +433,7 @@ app.layout = html.Div([
                         id='read-only-input',
                         options=['24hr-low','24hr-high','24hr-average'],
                         value='24hr-average',
-                        style={'width': '200px','height':'35px'}
+                        style={'width': '200px', 'height':'35px'}
                     )
                 ], width = 3)
             ], justify = 'evenly'),  
@@ -462,6 +459,7 @@ app.layout = html.Div([
             html.Div([
                 html.Div([projection_graph],style={'border': '2px solid rgb(184,134,11)'}),
                 html.Br(),
+                
                 # Portfolio projection metrics that go below the projection graph
                 dbc.Row([
                     dbc.Col([
@@ -470,7 +468,7 @@ app.layout = html.Div([
                             id='projection_bitcoin_balance',
                             value=0,
                             readOnly=True,
-                            style={'width':'200px','text-align': 'center'}
+                            style={'width':'200px','height':'35px','text-align': 'center'}
                         )
                     ], width = {'offset':1,'size':3}),
                     dbc.Col([
@@ -479,7 +477,7 @@ app.layout = html.Div([
                             id='projected_bitcoin_usd_value',
                             value=0,
                             readOnly=True,
-                            style={'width':'200px','text-align': 'center'}
+                            style={'width':'200px','height':'35px','text-align': 'center'}
                         )
                     ], width = 3),
                 ], justify = 'evenly'),
@@ -492,31 +490,48 @@ app.layout = html.Div([
 ], style={'width':'100%','background-color': 'black'})
     
 @app.callback(
+    Output('wallet_addresses_counter_and_label','children',allow_duplicate=True),
+    Input('wallet_addresses','children'),
+    prevent_initial_call=True)
+def update_address_count(children):
+    address_count = 0
+    for child in children:
+        if 'INVALID' not in child['props']['children']:
+            address_count+=1
+    return str(address_count)+' Addresses Added'
+
+@app.callback(
+    
+     
+    Output('wallet_addresses_text_input','value',allow_duplicate=True),
+    Output('wallet_addresses_counter_and_label','children',allow_duplicate=True),
     Output('wallet_addresses','children',allow_duplicate=True),
+    Output('filter_view_radio_items','value',allow_duplicate=True), 
     Output('wallet_graph','figure',allow_duplicate=True),
     Output('current_bitcoin_balance','value',allow_duplicate=True),
     Output('projection_bitcoin_balance','value',allow_duplicate=True),
     Output('current_bitcoin_usd_value','value',allow_duplicate=True),
-    # Level radio items
-    # Calculation Method
-    # Price Prediction Target Year... drop that whole div? 
-    Input('wallet_address_clear_button','n_clicks'),
+#     # Level radio items
+#     # Calculation Method
+#     # Price Prediction Target Year... drop that whole div? 
+    Input('wallet_addresses_clear_button','n_clicks'),
     prevent_initial_call=True)
 def reset_application(n_clicks):
     if n_clicks>0:
-        return [],empty_fig,0,0,0,0,
-    
+        session_state.raw_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
+        session_state.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
+        return None,'0 Addresses Added:',[],'portfolio',empty_fig
     
 # Callback that tracks the user wallets added and processes them (adds them to the page, generates graphs, generates session_state's dataframes for the wallet)
 @app.callback(
-    Output('wallet_address_text_input','value',allow_duplicate=True),
+    Output('wallet_addresses_text_input','value',allow_duplicate=True),
     Output('wallet_addresses','children',allow_duplicate=True),
     Output('wallet_graph','figure',allow_duplicate=True), # By default, objects should not used as output in multiple callbacks; have to allow duplicates manually
     Output('current_bitcoin_balance','value',allow_duplicate=True),
     Output('projection_bitcoin_balance','value',allow_duplicate=True),
     Output('current_bitcoin_usd_value','value',allow_duplicate=True),
     Input('wallet_address_submit_button','n_clicks'),
-    State('wallet_address_text_input','value'),
+    State('wallet_addresses_text_input','value'),
     State('wallet_addresses','children'),
     prevent_initial_call=True
 )
@@ -527,7 +542,7 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses):
         if validate_wallet(input_value): 
             input_value = '-'+str(input_value)
         else: 
-            input_value = 'INVALID-'+str(input_value)
+            input_value = '-INVALID'+str(input_value)
         wallet_addresses.append(html.Div(input_value,style={'color': 'rgb(184, 134, 11)'}))
         input_value = ''
     fig = generate_graph(session_state.filtered_all_wallet_df)
@@ -619,7 +634,7 @@ def update_projection_display(input_year,wallet_addresses):
 if __name__ == "__main__":
     #app.run_server(debug=True) # THIS LINE OR SOMETHING SIMILAR WILL BE USED IN OTHER IDE's; NOTE THAT THE APP IS FORMATTED FOR EXTERNAL WINDOWS
     # I HAVE ONLY USED JUPYTER_LABS FOR THIS ASSIGNMENT; I CANNOT SPEAK ON OTHER IDE's
-    app.run_server(jupyter_mode='external',port=8153,debug=True)
+    app.run_server(jupyter_mode='external',port=8993,debug=True)
     
 # Misc. public Bitcoin wallet addresses to test (vary in loading time in the app; hit submit only once after pasting the wallet):
 # 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 1MoooPejE6wvAcZxMo6KMBbwKeeTY2gmqN, 1FFcPEB7ZdUdmkhYmKnNwT6rTCY7jYNWnW, 17etp8Jgk2RqBZHLDWMHejMXwkfYJsk8FX
