@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[7]:
+# In[24]:
 
 
 import pandas as pd
@@ -96,7 +96,7 @@ class SessionState:
         # self.raw_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
         # self.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
         self.raw_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Low', 'Avg Price', 'High', 'Wallet'])
-        self.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Low', 'Avg Price', 'High', 'Wallet'])
+        self.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Low', 'Avg Price', 'High','Low Value','Avg Value','High Value'])
 
 # Create an instance of the SessionState class
 session_state = SessionState()
@@ -244,7 +244,7 @@ def get_wallet_data(bitcoin_address,transactions):
     session_state.raw_all_wallet_df = session_state.raw_all_wallet_df.reset_index(drop=True)
     
     # Create a copy of the session_state object's raw_all_wallet_df for use/maniuplation
-    all_wallet_df = pd.DataFrame(session_state.raw_all_wallet_df) 
+    all_wallet_df = pd.DataFrame(session_state.raw_all_wallet_df).copy()
     
     # Set the 'Date' column to datetime instead of strings and sort the 'Date" column in descending order
     all_wallet_df['Date'] = pd.to_datetime(all_wallet_df['Date'])
@@ -265,8 +265,12 @@ def get_wallet_data(bitcoin_address,transactions):
     latest_entries['Date'] = latest_entries['Date'].dt.date
     
     # Sum the "amount" and "value" of all dates grouping by date and price
-    session_state.filtered_all_wallet_df = latest_entries.groupby(['Date', 'Avg Price'])[['Amount']].sum(numeric_only=True).reset_index() # This may need to have low and high? 
-    
+    #print('test 1')
+   # print(latest_entries)
+    #print(latest_entries.groupby(['Date', 'Low','Avg Price','High'])[['Amount']].sum(numeric_only=True).reset_index())
+    session_state.filtered_all_wallet_df = latest_entries.groupby(['Date','Low','Avg Price','High'])[['Amount']].sum(numeric_only=True).reset_index() # This may need to have low and high? 
+    #print('test 2')
+   # print(session_state.filtered_all_wallet_df)
     # The value here is technically incorrect; value should not be summed
     # Recalculate the value by looping through the filtered_all_wallet_df and multiplying amount by price
     # value_list = []
@@ -285,16 +289,18 @@ def get_wallet_data(bitcoin_address,transactions):
 
     
     
-def generate_graph(filtered_df,price_type,button_id=None):
+def generate_graph(filtered_df_in,price_type,button_id=None):
     # if an emtpy filtered_df is passed, generate an empty figure
-    if filtered_df==None or len(filtered_df)>0:
-        filtered_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Low':0,'Avg Price':0,'High':0}])
-    
+    #if filtered_df==None or len(filtered_df)>0:
+    filtered_df = None 
+    if filtered_df_in.empty:
+        filtered_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Low Value':0,'Avg Value':0,'High Value':0,'Low':0,'Avg Price':0,'High':0}])
+    else:
+        filtered_df = filtered_df_in.copy()
     price_map = {'24hr-low':'Low', '24hr-average':'Avg Price', '24hr-high':'High'}
-    price_col = price_options[price_type]
+    price_col = price_map[price_type]
     filtered_df['Value'] = filtered_df['Amount'] * filtered_df[price_col]
-
-    
+    usd_val = filtered_df['Value'].iloc[-1]
     # If Portfolio is selected ---------------------------------------------------
     # Use default title if there is no title passed
     fig_title = 'Bitcoin Amount and USD Value Time Series'
@@ -308,7 +314,7 @@ def generate_graph(filtered_df,price_type,button_id=None):
     # Generate the graph
     fig = px.line(filtered_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
               title=fig_title,hover_data={"Value": ":$.2f", "Date": True},color_discrete_sequence=['lightgrey'])
-   
+    print('got here 2')
     # Add Bitcoin Amount as a new trace
     fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df['Amount'], mode='lines',
                              name='Amount', yaxis='y2',line=dict(color=darker_gold_color,shape='spline'),
@@ -354,7 +360,7 @@ def generate_graph(filtered_df,price_type,button_id=None):
                              marker=dict(color='lightgrey'), showlegend=True))
     
     # Show the plot
-    return fig
+    return fig,usd_val
 
 # Initialize the Dash app object
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -387,15 +393,11 @@ buttons = [
     html.Button('ALL',id='ALL_button', style=button_style)
 ]
 
-# # Create a default empty dataframe and graph to display on the Dash application's initial load
-# empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Low':0,'Avg Price':0,'High':0}])
-# empty_fig = generate_graph(pd.DataFrame(),None,empty_df)
-
 # Object that contains the wallet_graph on the page; uses the generated empty figure initially
-wallet_graph = dcc.Graph(id='wallet_graph',figure=empty_fig)
+#wallet_graph = dcc.Graph(id='wallet_graph',figure=empty_fig)
 
 # Object that contains the projection_graph on the page
-projection_graph = dcc.Graph(id='projection_graph')
+
 
 # Design the Dash application's layout; pay attention to width's and objects being used 
 app.layout = html.Div([
@@ -437,7 +439,7 @@ app.layout = html.Div([
             ]),
             html.Div([
                 dcc.Graph(id='wallet_graph',
-                          figure=generate_graph(session_state.filtered_all_wallet_df,'24hr-average')
+                          figure=generate_graph(session_state.filtered_all_wallet_df,'24hr-average')[0]
                          )
             ], style={'border': '2px solid rgb(184,134,11)'}), 
             html.Br(),
@@ -492,7 +494,7 @@ app.layout = html.Div([
             
             html.Br(),
             html.Div([
-                html.Div([projection_graph],style={'border': '2px solid rgb(184,134,11)'}),
+                html.Div([dcc.Graph(id='projection_graph')],style={'border': '2px solid rgb(184,134,11)'}),
                 html.Br(),
                 
                 # Portfolio projection metrics that go below the projection graph
@@ -599,14 +601,16 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type):
             input_value = '-INVALID'+str(input_value)
         wallet_addresses.append(html.Div(input_value,style={'color': 'rgb(184, 134, 11)'}))
         input_value = ''
-    print(session_state.filtered_all_wallet_df)
+    #print(session_state.filtered_all_wallet_df)
     #fig = generate_graph(session_state.filtered_all_wallet_df)
-    fig = generate_graph(session_state.filtered_all_wallet_df,price_type)
-
+    fig,curr_usd_value = generate_graph(session_state.filtered_all_wallet_df,price_type)
+    print('got past this error')
     
     # Grab the current btc balance / usd value by querying these respective columns in the last row of the session_state's filtered_all_wallet_df
     curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
-    curr_usd_value = session_state.filtered_all_wallet_df['Value'].iloc[-1]
+    print('this must be')
+    #curr_usd_value = session_state.filtered_all_wallet_df['Value'].iloc[-1]
+    print('is this the error')
     curr_usd_value = f"${curr_usd_value:.2f}"
 
     return input_value,wallet_addresses,fig,curr_btc_balance,curr_btc_balance,curr_usd_value
@@ -623,8 +627,9 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type):
     Input('1Y_button','n_clicks'),
     Input('5Y_button','n_clicks'),
     Input('ALL_button','n_clicks'),
+    State('price_type_dropdown','value'),
     prevent_initial_call=True)
-def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, clicks_ytd, clicks_1y, clicks_5y, clicks_all):
+def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, clicks_ytd, clicks_1y, clicks_5y, clicks_all, price_type):
     # Check and store which input triggered the callback
     ctx = dash.callback_context
     button_id = None if not ctx.triggered else ctx.triggered[0]['prop_id'].split('.')[0]
@@ -664,7 +669,7 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
     filtered_df = session_state.filtered_all_wallet_df[(session_state.filtered_all_wallet_df['Date'] >= offset_days_back) & (session_state.filtered_all_wallet_df['Date'] <= latest_date)]
     
     # Generate the graph including button_id as a parameter to distinguish from the initial call in the update_portflio_display function
-    fig = generate_graph(filtered_df,button_id)
+    fig,usd_value = generate_graph(filtered_df,price_type,button_id)
     return fig
 
 # Callback to update the projection graph based on the user's selected projection year
@@ -679,7 +684,7 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
 def update_projection_display(input_year,wallet_addresses):
     # The below code is a placeholder for now, just returning an empty graph similar to the first graph when the page loads initially
     empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Low':0,'Avg Price':0,'High':0}])
-    empty_fig = generate_graph(pd.DataFrame(),None,empty_df)
+    empty_fig = generate_graph(empty_df,None,empty_df)
     if input_year==None:
         return {'display':'none'},empty_fig
     if wallet_addresses==None:
