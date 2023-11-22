@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[5]:
+# In[17]:
 
 
 import pandas as pd
@@ -281,77 +281,87 @@ def get_wallet_data(bitcoin_address,transactions):
     #     #value_list.append(value)
     # session_state.filtered_all_wallet_df['Value'] = value_list
     
-#def generate_graph(filtered_df,button_id=None,empty_df=None): should probably take radio items, and an additional df as well here? 
-def generate_graph(filtered_df_in, price_type, button_id=None):
-    # if an emtpy filtered_df is passed, generate an empty figure
-    #if filtered_df==None or len(filtered_df)>0:
+def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
     filtered_df = None 
     if filtered_df_in.empty:
-        filtered_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Low Value':0,'Avg Value':0,'High Value':0,'Low':0,'Avg Price':0,'High':0}])
+        if radio_value=='individual':
+            filtered_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Low Value':0,'Avg Value':0,'High Value':0,'Low':0,'Avg Price':0,'High':0,'Wallet':'abcdefghijklmnopqrstuvwxyz'}])
+        elif radio_value=='portfolio':
+            filtered_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Low Value':0,'Avg Value':0,'High Value':0,'Low':0,'Avg Price':0,'High':0}])
     else:
         filtered_df = filtered_df_in.copy()
     price_map = {'24hr-low':'Low', '24hr-average':'Avg Price', '24hr-high':'High'}
     price_col = price_map[price_type]
     filtered_df['Value'] = filtered_df['Amount'] * filtered_df[price_col]
     usd_val = filtered_df['Value'].iloc[-1]
-    # If Portfolio is selected ---------------------------------------------------
-    # Use default title if there is no title passed
-    fig_title = 'Bitcoin Amount and USD Value Time Series'
-    if button_id!=None:
-        button_id = button_id.split('_')[0]
-        fig_title += f' {button_id}'
-        
+    
     # Specify RGB color to be used in much of the graph
     darker_gold_color = 'rgb(184,134,11)'
-    
-    # Generate the graph
-    fig = px.line(filtered_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
-              title=fig_title,hover_data={"Value": ":$.2f", "Date": True},color_discrete_sequence=['lightgrey'])
+    if radio_value=='individual':
+        filtered_df = session_state.raw_all_wallet_df.copy()
+        filtered_df['Value'] = filtered_df['Amount'] * filtered_df[price_col]
+        fig_title = 'USD Value Per Wallet Time Series'
+        if button_id!=None:
+            button_id = button_id.split('_')[0]
+            fig_title += f' {button_id}'
 
-    # Add Bitcoin Amount as a new trace
-    fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df['Amount'], mode='lines',
-                             name='Amount', yaxis='y2',line=dict(color=darker_gold_color,shape='spline'),
-                             hovertemplate='Date=%{x|%b %d, %Y}<br>Amount=%{y:,.8f}'))
+        # Plotting the time series graph for each wallet
+        fig = px.line(filtered_df, x='Date', y='Value', color='Wallet', title='Value over Time for Different Wallets', category_orders={'Wallet': filtered_df['Wallet'].unique()})
 
-    # Customize the layout for sleek y-axis ticks
-    fig.update_layout(
-        legend=dict(
-            x=1.1, # Set the legend's x position to 1 (right)
-            y=1.2, # Set the legend's y position to 1 (top)
-            xanchor='right', # Specify legend's location
-            yanchor='top' 
-        ),
-        yaxis=dict(
-            title='USD Value',
-            tickmode='linear',
-            tick0=filtered_df['Value'].min(), # Set the lowest tick to the minimum value 
-            dtick=(filtered_df['Value'].max() - filtered_df['Value'].min()) / 4, # Calculate tick interval for 5 ticks
-            tickformat='$,.0f', # Format y-axis ticks as currency with 2 decimal places
-            showgrid=False,       #
-            gridcolor='lightgray',  
-        ),
-        yaxis2=dict(
-            title='BTC Amount',
-            overlaying='y',
-            side='right',
-            tickmode='linear',
-            tick0 = filtered_df['Amount'].min(), # Set the lowest tick to the minimum amount
-            dtick=(filtered_df['Amount'].max() - filtered_df['Amount'].min()) / 4, # Calculate tick interval for 5 ticks
-            showgrid=False,       
-            tickformat=',.8f', # Format y2-axis ticks with 8 decimal places
-        ),
-        xaxis=dict(
-            title='Date',
-            showgrid=False),
-        paper_bgcolor='black',  
-        plot_bgcolor='black',   
-        font=dict(color=darker_gold_color)
-    )
-    
-    # Add another trace so that "Value" appears on the legend
-    fig.add_trace(go.Scatter(x=[None], y=[None], mode='lines', name='Value',
-                             marker=dict(color='lightgrey'), showlegend=True))
-    print(session_state.raw_all_wallet_df)
+    elif radio_value=='portfolio':
+        # Use default title if there is no title passed
+        fig_title = 'Bitcoin Amount and USD Value Time Series'
+        if button_id!=None:
+            button_id = button_id.split('_')[0]
+            fig_title += f' {button_id}'
+
+        # Generate the graph
+        fig = px.line(filtered_df, x='Date', y='Value', labels={'Date': 'Date', 'Value': 'Value'},
+                  title=fig_title,hover_data={"Value": ":$.2f", "Date": True},color_discrete_sequence=['lightgrey'])
+
+        # Add Bitcoin Amount as a new trace
+        fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df['Amount'], mode='lines',
+                                 name='Amount', yaxis='y2',line=dict(color=darker_gold_color,shape='spline'),
+                                 hovertemplate='Date=%{x|%b %d, %Y}<br>Amount=%{y:,.8f}'))
+
+        # Customize the layout for sleek y-axis ticks
+        fig.update_layout(
+            legend=dict(
+                x=1.1, # Set the legend's x position to 1 (right)
+                y=1.2, # Set the legend's y position to 1 (top)
+                xanchor='right', # Specify legend's location
+                yanchor='top' 
+            ),
+            yaxis=dict(
+                title='USD Value',
+                tickmode='linear',
+                tick0=filtered_df['Value'].min(), # Set the lowest tick to the minimum value 
+                dtick=(filtered_df['Value'].max() - filtered_df['Value'].min()) / 4, # Calculate tick interval for 5 ticks
+                tickformat='$,.0f', # Format y-axis ticks as currency with 2 decimal places
+                showgrid=False,       #
+                gridcolor='lightgray',  
+            ),
+            yaxis2=dict(
+                title='BTC Amount',
+                overlaying='y',
+                side='right',
+                tickmode='linear',
+                tick0 = filtered_df['Amount'].min(), # Set the lowest tick to the minimum amount
+                dtick=(filtered_df['Amount'].max() - filtered_df['Amount'].min()) / 4, # Calculate tick interval for 5 ticks
+                showgrid=False,       
+                tickformat=',.8f', # Format y2-axis ticks with 8 decimal places
+            ),
+            xaxis=dict(
+                title='Date',
+                showgrid=False),
+            paper_bgcolor='black',  
+            plot_bgcolor='black',   
+            font=dict(color=darker_gold_color)
+        )
+
+        # Add another trace so that "Value" appears on the legend
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode='lines', name='Value',
+                                 marker=dict(color='lightgrey'), showlegend=True))
     # Show the plot
     return fig,usd_val
 
@@ -428,7 +438,7 @@ app.layout = html.Div([
                 
                 # Object that contains the wallet_graph on the page; uses the generated empty figure initially
                 dcc.Graph(id='wallet_graph',
-                          figure=generate_graph(session_state.filtered_all_wallet_df,'24hr-average')[0]
+                          figure=generate_graph(session_state.filtered_all_wallet_df,'24hr-average','portfolio')[0]
                          )
             ], style={'border': '2px solid rgb(184,134,11)'}), 
             html.Br(),
@@ -518,6 +528,19 @@ app.layout = html.Div([
 ], style={'width':'100%','background-color': 'black'})
     
 @app.callback(
+    Output('wallet_graph','figure'),
+    Input('filter_view_radio_items','value'),
+    State('price_type_dropdown','value'),
+    prevent_initial_call=True)
+def change_graph_view(radio_value,price_type):
+    fig = None
+    if radio_value=='individual':
+        fig = generate_graph(session_state.raw_all_wallet_df,price_type,radio_value)[0]
+    elif radio_value=='portfolio':
+        fig = generate_graph(session_state.filtered_all_wallet_df,price_type,radio_value)[0]
+    return fig
+        
+@app.callback(
     Output('wallet_addresses_counter_and_label','children',allow_duplicate=True),
     Input('wallet_addresses','children'),
     prevent_initial_call=True)
@@ -552,7 +575,7 @@ def reset_application(n_clicks):
                 '0 Addresses Added:',
                 [],
                 'portfolio',
-                generate_graph(session_state.filtered_all_wallet_df,'24hr-average')[0],
+                generate_graph(session_state.filtered_all_wallet_df,'24hr-average','portfolio')[0],
                 0,
                 0,
                 '24hr-average',
@@ -570,9 +593,10 @@ def reset_application(n_clicks):
     Output('current_bitcoin_usd_value','value',allow_duplicate=True),
     Input('price_type_dropdown','value'),
     State('wallet_addresses','children'),
+    State('filter_view_radio_items','value'),
     prevent_initial_call=True)
-def change_price_calculation(price_type,wallet_addresses):
-    fig,curr_usd_value = generate_graph(session_state.filtered_all_wallet_df,price_type)
+def change_price_calculation(price_type,wallet_addresses,radio_value):
+    fig,curr_usd_value = generate_graph(session_state.filtered_all_wallet_df,price_type,radio_value)
     if len(wallet_addresses)>0:
         curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
         curr_usd_value = f"${curr_usd_value:.2f}"
@@ -592,10 +616,11 @@ def change_price_calculation(price_type,wallet_addresses):
     State('wallet_addresses_text_input','value'),
     State('wallet_addresses','children'),
     State('price_type_dropdown','value'),
+    State('filter_view_radio_items','value'),
     prevent_initial_call=True
 )
 #def update_portfolio_display(n_clicks,input_value,wallet_addresses):  
-def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type):    
+def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type,radio_value):    
     if wallet_addresses is None:
         wallet_addresses = []
     if n_clicks > 0 and input_value:
@@ -607,7 +632,7 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type):
         input_value = ''
     #print(session_state.filtered_all_wallet_df)
     #fig = generate_graph(session_state.filtered_all_wallet_df)
-    fig,curr_usd_value = generate_graph(session_state.filtered_all_wallet_df,price_type,None)
+    fig,curr_usd_value = generate_graph(session_state.filtered_all_wallet_df,price_type,radio_value)
     
     # Grab the current btc balance / usd value by querying these respective columns in the last row of the session_state's filtered_all_wallet_df
     curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
@@ -628,8 +653,9 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type):
     Input('5Y_button','n_clicks'),
     Input('ALL_button','n_clicks'),
     State('price_type_dropdown','value'),
+    State('filter_view_radio_items','value'),
     prevent_initial_call=True)
-def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, clicks_ytd, clicks_1y, clicks_5y, clicks_all, price_type):
+def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, clicks_ytd, clicks_1y, clicks_5y, clicks_all, price_type, radio_value):
     # Check and store which input triggered the callback
     ctx = dash.callback_context
     button_id = None if not ctx.triggered else ctx.triggered[0]['prop_id'].split('.')[0]
@@ -666,10 +692,14 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
     
     # Retrieve the day equal to the latest_date minus the days_offset number of days
     offset_days_back = (latest_date - pd.DateOffset(days=days_offset)).date()
-    filtered_df = session_state.filtered_all_wallet_df[(session_state.filtered_all_wallet_df['Date'] >= offset_days_back) & (session_state.filtered_all_wallet_df['Date'] <= latest_date)]
+    filtered_df = None
+    if radio_value=='individual':
+        filtered_df = session_state.raw_all_wallet_df[(session_state.raw_all_wallet_df['Date'] >= offset_days_back) & (session_state.raw_all_wallet_df['Date'] <= latest_date)]
+    elif radio_value=='portfolio':
+        filtered_df = session_state.filtered_all_wallet_df[(session_state.filtered_all_wallet_df['Date'] >= offset_days_back) & (session_state.filtered_all_wallet_df['Date'] <= latest_date)]
     
     # Generate the graph including button_id as a parameter to distinguish from the initial call in the update_portflio_display function
-    fig,usd_value = generate_graph(filtered_df,price_type,button_id)
+    fig = generate_graph(filtered_df,price_type,radio_value,button_id)[0]
     return fig
 
 # Callback to update the projection graph based on the user's selected projection year
@@ -680,14 +710,15 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
     Input('wallet_addresses_clear_button','n_clicks'),
     Input('projection_target_year','value'),
     State('wallet_addresses','children'),
+    State('filter_view_radio_items','value'),
     prevent_initial_call=True
 )
-def update_projection_display(n_clicks,input_year,wallet_addresses):
+def update_projection_display(n_clicks,input_year,wallet_addresses,radio_value):
     # if n_clicks > 0:
     #     raise PreventUpdate
     # The below code is a placeholder for now, just returning an empty graph similar to the first graph when the page loads initially
     empty_df = pd.DataFrame([{'Date':datetime.today().date(),'Amount':0,'Value':0,'Low':0,'Avg Price':0,'High':0}])
-    empty_fig = generate_graph(empty_df,'24hr-average')[0]
+    empty_fig = generate_graph(empty_df,'24hr-average',radio_value)[0]
     if input_year==None:
         return {'display':'none'},empty_fig
     if wallet_addresses==None:
@@ -701,7 +732,7 @@ def update_projection_display(n_clicks,input_year,wallet_addresses):
 if __name__ == "__main__":
     #app.run_server(debug=True) # THIS LINE OR SOMETHING SIMILAR WILL BE USED IN OTHER IDE's; NOTE THAT THE APP IS FORMATTED FOR EXTERNAL WINDOWS
     # I HAVE ONLY USED JUPYTER_LABS FOR THIS ASSIGNMENT; I CANNOT SPEAK ON OTHER IDE's
-    app.run_server(jupyter_mode='external',port=8853,debug=True)
+    app.run_server(jupyter_mode='external',port=7853,debug=True)
     
 # Misc. public Bitcoin wallet addresses to test (vary in loading time in the app; hit submit only once after pasting the wallet):
 # 14bwkr3m8BWH8sgSXUiLVVS7CVEyHwz8sb, bc1q02mrh85muzdjk32sxu82022uke9qgjna6ydv05, 1MoooPejE6wvAcZxMo6KMBbwKeeTY2gmqN, 1FFcPEB7ZdUdmkhYmKnNwT6rTCY7jYNWnW, 17etp8Jgk2RqBZHLDWMHejMXwkfYJsk8FX
