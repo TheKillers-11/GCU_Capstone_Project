@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[5]:
+# In[11]:
 
 
 import pandas as pd
@@ -14,7 +14,6 @@ import dash_bootstrap_components as dbc
 from dash import Dash, dcc, html, Input, Output, callback, State
 import plotly.express as px
 import plotly.graph_objects as go
-import pandas as pd
 import sklearn
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
@@ -54,7 +53,6 @@ BTC_df.rename(columns={'index': 'Date'}, inplace=True)
 
 # Format the BTC DataFrame; add the average price column, which is used as the BTC price for an entire day in this project
 BTC_df['Date'] = BTC_df['Date'].dt.strftime('%Y-%m-%d')
-#BTC_df.drop(['Stock Splits','Dividends','High','Low','Volume'],inplace=True,axis=1) # old line
 BTC_df.drop(['Stock Splits','Dividends','Volume'],inplace=True,axis=1)
 
 # Join the pricing dataframes
@@ -95,8 +93,6 @@ BTC_df.drop(columns=['index'], inplace=True)
 # Instead, using a class seems to be the best way around this
 class SessionState:
     def __init__(self):
-        # self.raw_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
-        # self.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Value', 'Price', 'Wallet'])
         self.raw_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Low', 'Avg Price', 'High', 'Wallet'])
         self.filtered_all_wallet_df = pd.DataFrame(columns=['Date', 'Amount', 'Low', 'Avg Price', 'High','Low Value','Avg Value','High Value'])
 
@@ -401,8 +397,17 @@ button_style = {'background-color': 'black', 'color': 'rgb(184, 134, 11)', 'bord
 popover_content_info = dbc.Popover([
         dbc.PopoverHeader("Application Quick Start Guide", style={'font-weight':'bold','background-color': 'rgb(184, 134, 11)', 'color': 'black'}),
         dbc.PopoverBody([
+            html.Strong("Preface: Please read the attached User Guide with this Milestone 3 submission for detailed explanations on using the application."),
+            html.Br(),
             html.Strong("1. Begin by entering all your public wallet addresses first."),
-            html.Div("35nVM2jFH4VhhnEqvQnVVVs9b6U3pJnzmG 1FV3sVEhib1KF8WqwMmJmmHLD9UAGVKQiU 1KaxPqBzRr76EmueqPgKsdwrPxCrNTDspu"),
+            html.Div("You can copy public wallet addresses by hovering over the wallet icon to the right of this i icon."),
+            html.Strong("2. Examine and play with the graph displayed on the page."),
+            html.Div("You can filter this graph with the time buttons in the top left; you can also change the view (individual-wallet-level or portfolio-level) in the top right."),
+            html.Strong("3. Change the price calculation method via the dropdown in the middle right of the page."),
+            html.Div("This will allow you to change the underlying price calculation of your Bitcoin's USD value to the daily low, average (of open and closing price), or high price using Yahoo Finance data."),
+            html.Strong("4. Select a prediction year to see what your current BTC amount's future value could be. ONLY DO THIS ONCE ALL WALLETS ARE INPUT."),
+            html.Div("Notice that a trace in the projection graph is shown for the linear regression prediction based on the low, average, and high BTC historical prices separately."),
+            html.Strong("5. Click the 'clear wallets' button on the left side panel to reset the application entirely."),
         ], style = {'color':'white'}),
     ],
     trigger='hover',
@@ -419,7 +424,7 @@ popover_content_wallets = dbc.Popover([
             html.Div("17BLucvnjQuMgvGLSarDqC8nxrj8PoAEnV 1MpeoHWC82iaix8X7k79esYwH8P3SNZk6G 19eL91vPS3eHQiL5wAvRP6HAZj3AdY4rv2"),
             html.Strong("Medium BTC Amount History:"),
             html.Div("1Ric8cLznTzfEou6XsQakshST5VXJJKkf 17jGZpvEUGbSDkvt8AqniGMbbek12VZtZc 1BbqgqEqEZ2jvTWCvVPjmi8xaVzsFjcorP"),
-            html.Div("1JXN3G3Z8DiuUgxvGEKAqk2kvWs7T3wL2E 1466GDyUBh7BkqjXqAuQk6SaBJp83iyMRf 1CmmGYZBrSLMrxAiJupY2aF4gHyJe2VzJu"),
+            html.Div("1JXN3G3Z8DiuUgxvGEKAqk2kvWs7T3wL2E 1466GDyUBh7BkqjXqAuQk6SaBJp83iyMRf"),
             html.Strong("Large BTC Amount History:"),
             html.Div("19XMqP6XgFMBLAQmCFnxo7eZd2zMFHVF4a 1CmmGYZBrSLMrxAiJupY2aF4gHyJe2VzJu 1LHXajb4UGW6x6i9VkvcxRiaNVLBFyqUz2 1GoR3H3kSc6cG3YomaVRqKtBJRanqrha5Z"),
             html.Strong("Very Large BTC Amount History"),
@@ -562,7 +567,7 @@ app.layout = html.Div([
             dbc.Row([
                 dbc.Col([],width={'offset':1,'size':3}),
                 dbc.Col([
-                    dbc.Tooltip("After adding a new wallet, you will need to choose a new year for this graph to rerun with the new data.", target="projection_target_year_label", placement="top"),
+                    dbc.Tooltip("Please only select a prediction year after inputting all wallets needed. After the initial prediction year selection, you will need to choose a new year for this graph to rerun for the new year.", target="projection_target_year_label", placement="top"),
                     dbc.Label("Price Prediction Target Year:",id='projection_target_year_label',html_for='projection_target_year',style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
                     dcc.Dropdown(
                         id='projection_target_year',
@@ -721,7 +726,7 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type,ra
     curr_usd_value = f"${curr_usd_value:.2f}"
     return input_value,wallet_addresses,fig,curr_btc_balance,curr_btc_balance,curr_usd_value
 
-# This callbakc / function the "wallet_graph" similar to a traditional stock-chart; identify what timespan button was clicked by user and filter the time series graph accordingly
+# This callback / function the "wallet_graph" similar to a traditional stock-chart; identify what timespan button was clicked by user and filter the time series graph accordingly
 @app.callback(
     Output('wallet_graph','figure',allow_duplicate=True),
     Input('1D_button','n_clicks'),
@@ -905,11 +910,12 @@ if __name__ == "__main__":
     #app.run_server(debug=True) # THIS LINE OR SOMETHING SIMILAR WILL BE USED IN OTHER IDE's; NOTE THAT THE APP IS FORMATTED FOR EXTERNAL WINDOWS
     # I HAVE ONLY USED JUPYTER_LABS FOR THIS ASSIGNMENT; I CANNOT SPEAK ON OTHER IDE's
     app.run_server(jupyter_mode='external',port=7953,debug=True)
-    # To run this application without the Dash debug pop-up, remove debug=True
+    
+    # To run this application on Jupyter without the Dash debug pop-up, remove debug=True
     # app.run_server(jupyter_mode='external',port=7953)
 
 
-# In[4]:
+# In[7]:
 
 
 print("Pandas version:", pd.__version__)
