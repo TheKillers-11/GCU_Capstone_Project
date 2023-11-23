@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[5]:
 
 
 import pandas as pd
@@ -18,9 +18,6 @@ import pandas as pd
 import sklearn
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
-
-# Style for html.buttons
-button_style = {'background-color': 'black', 'color': 'rgb(184, 134, 11)', 'border': '1px solid rgb(184, 134, 11)'}
 
 # Hard-code early BTC data that is not widely available; see comments on each price 
 early_BTC_data = {2009: {'Open':0.01,'Close':0.01,'Avg Price':0.01,'Low':0.01,'High':0.01}, # Arbitrary value using a penny as the price since BTC was basically unpriced/miniscule in price at this time
@@ -75,7 +72,7 @@ BTC_df['Date'] = BTC_df['Date'].dt.date
 lowest_date = BTC_df['Date'].min()
 highest_date = BTC_df['Date'].max()
 
-# Find any Missing dates; loop through the missing dates, set the missing date equal to the previous row
+# Find any missing dates; loop through the missing dates and set the missing date equal to the previous row
 # The yfinance library sometimes skips dates, and it seems to remedy itself a few days later
 # The gaps must be filled in with some sort of data to avoid errors
 date_range = pd.date_range(lowest_date,highest_date)
@@ -91,7 +88,6 @@ BTC_df.reset_index(inplace=True)
 
 # Cast the date column to a string for proper comparison with the Blockstream API's date data
 BTC_df['Date'] = BTC_df['Date'].astype(str)
-# BTC_df.drop('index',inplace=True)
 BTC_df.drop(columns=['index'], inplace=True)
 
 # The Dash documentation says not to use global variables if they are going to be manipulated by user action
@@ -161,7 +157,6 @@ def validate_wallet(bitcoin_address):
 # Create a dataframe of the transactions and add them to the session_state's raw and filtered dataframes respectively
 def get_wallet_data(bitcoin_address,transactions):
     global BTC_df # Dash documentation suggests not using global variables if the variable will be changed by the user; BTC_df will never be changed
-    #wallet_df = pd.DataFrame(columns=['Date','Price','Amount','Value','Wallet'])
     wallet_df = pd.DataFrame(columns=['Date','Low','Avg Price','High','Amount','Wallet'])
     total_balance = 0
     
@@ -176,7 +171,6 @@ def get_wallet_data(bitcoin_address,transactions):
         for input_tx in transaction['vin']:
             if input_tx['prevout']['scriptpubkey_address'] == bitcoin_address:
                 total_balance -= input_tx['prevout']['value']
-
         for output in transaction['vout']:
             if output['value']!=0 and output['scriptpubkey_address'] == bitcoin_address:
                 total_balance += output['value']
@@ -184,7 +178,7 @@ def get_wallet_data(bitcoin_address,transactions):
         total_balance_in_BTC = total_balance/100000000
         
         # Grab the date portion of the datetime timestamp only as a string
-        # Find the date in the BTC_df to pull the price on that date
+        # Find the date in the BTC_df to pull the pricing data for that date
         check_date = str(date)[:10]
         price_entry = BTC_df[BTC_df['Date'] == check_date]
         avg_price = price_entry['Avg Price'].iloc[0] 
@@ -206,7 +200,7 @@ def get_wallet_data(bitcoin_address,transactions):
     # If this normalization was not done, dates that appear in one wallet but not the others would show as massive outliers in the time series and inaccurately portray Bitcoin holdings for that day
     # Convert the 'Date' column to datetime objects and define start and end dates for the loop
     wallet_df['Date'] = pd.to_datetime(wallet_df['Date'])
-    start_date = datetime(2009, 1, 3)    
+    start_date = datetime(2009, 1, 3) # The date the Bitcoin blockchain went live  
     end_date = datetime.today()
 
     # Initialize an empty DataFrame to store intermediary results
@@ -266,9 +260,13 @@ def get_wallet_data(bitcoin_address,transactions):
     # Convert the date column to datetime objects for sorting / summation
     latest_entries['Date'] = latest_entries['Date'].dt.date
     
-    # Sum the "amount" and "value" of all dates grouping by date and price
-    session_state.filtered_all_wallet_df = latest_entries.groupby(['Date','Low','Avg Price','High'])[['Amount']].sum(numeric_only=True).reset_index() # This may need to have low and high? 
+    # Sum the BTC "amount" of all dates grouping by date, low price, avg price, and high price
+    session_state.filtered_all_wallet_df = latest_entries.groupby(['Date','Low','Avg Price','High'])[['Amount']].sum(numeric_only=True).reset_index()
     
+# This function generates the first graph in the Dash application, which shows either portfolio-level and individual-wallet-level data depending on user selections
+# This graph can be filtered by time (by clicking buttons on the page like a normal stock chart) or by using the price type dropdown (24hr-average, 24hr-low, 24hr-high)
+# This function also generates the 'value' column of the dataframe passed by taking the price column passed, mapping it, and multiplying it by the 'amount' column of the DataFrame
+# The current usd value of the portfolio is also returned in this function
 def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
     filtered_df = None 
     if filtered_df_in.empty:
@@ -285,6 +283,8 @@ def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
    
     # Specify RGB color to be used in much of the graph
     darker_gold_color = 'rgb(184,134,11)'
+    
+    # If the "view" radio value in the top right of the application is "individual," display a time series graph with each wallet as a trace
     if radio_value=='individual':
         fig_title = 'USD Value Per Wallet Time Series'
         if button_id!=None:
@@ -296,15 +296,11 @@ def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
         
         # Create a list of 27 unique colors to be used as the trace color when a wallet is added; adding more than 27 wallets will break the application because a color will not be specified
         # More colors can be added, but for the demo of this capstone, more than 27 wallets are not needed to display application functionality
-        color_sequence = ['lightgrey','rgb(184,134,11)', 
-            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
-            '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
-            '#c49c94', '#f7b6d2', '#c7c7c7', '#dbdb8d', '#9edae5',
-            '#393b79', '#ff9c00', '#5254a3', '#d94801', '#ff5800'
-        ]
+        color_sequence = ['lightgrey','rgb(184,134,11)', '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd','#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+                          '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5','#c49c94', '#f7b6d2', '#c7c7c7', '#dbdb8d', '#9edae5','#393b79', '#ff9c00', '#5254a3',
+                          '#d94801', '#ff5800']
         
-        # Plotting the time series graph for each wallet
+        # Create the time series graph with each wallet having a trace
         fig = px.line(filtered_df, x='Date', y='Value', color='Wallet', title=fig_title,hover_data={"Value": ":$.2f", "Date": True},
               category_orders={'Wallet': filtered_df['Wallet'].unique()},
               color_discrete_map={wallet: color_sequence[i % len(color_sequence)] for i, wallet in enumerate(filtered_df['Wallet'].unique())})
@@ -312,8 +308,8 @@ def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
         # Customize the layout for sleek y-axis ticks
         fig.update_layout(
             legend=dict(
-                x=1.1,  # Set the legend's x position to 1 (right)
-                y=1.2,  # Set the legend's y position to 1 (top)
+                x=1.1,  # Set the legend's x position to 1.1 (right)
+                y=1.2,  # Set the legend's y position to 1.2 (top)
                 xanchor='right',  # Specify legend's location
                 yanchor='top'
             ),
@@ -336,6 +332,7 @@ def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
             font=dict(color=darker_gold_color)
         )
 
+    # If the "view" radio value in the top right of the application is "portfolio," display a portfolio-level graph with 2 traces: total BTC amount and total USD value
     elif radio_value=='portfolio':
         # Use default title if there is no title passed
         fig_title = 'Bitcoin Amount and USD Value Time Series'
@@ -355,8 +352,8 @@ def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
         # Customize the layout for sleek y-axis ticks
         fig.update_layout(
             legend=dict(
-                x=1.1, # Set the legend's x position to 1 (right)
-                y=1.2, # Set the legend's y position to 1 (top)
+                x=1.1, # Set the legend's x position to 1.1 (right)
+                y=1.2, # Set the legend's y position to 1.2 (top)
                 xanchor='right', # Specify legend's location
                 yanchor='top' 
             ),
@@ -366,7 +363,7 @@ def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
                 tick0=filtered_df['Value'].min(), # Set the lowest tick to the minimum value 
                 dtick=(filtered_df['Value'].max() - filtered_df['Value'].min()) / 4, # Calculate tick interval for 5 ticks
                 tickformat='$,.0f', # Format y-axis ticks as currency with 2 decimal places
-                showgrid=False,       #
+                showgrid=False, 
                 gridcolor='lightgray',  
             ),
             yaxis2=dict(
@@ -395,49 +392,46 @@ def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
     return fig,usd_val
 
 # Initialize the Dash app object
-#app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app = Dash(__name__, external_stylesheets = [dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME])
 
-popover_content_info = dbc.Popover(
-    [
+# Specify style for html.buttons in the Dash app layout
+button_style = {'background-color': 'black', 'color': 'rgb(184, 134, 11)', 'border': '1px solid rgb(184, 134, 11)'}
+
+# Create the popover content for the "i" icon in the top right of the application's navbar (header)
+popover_content_info = dbc.Popover([
         dbc.PopoverHeader("Application Quick Start Guide", style={'font-weight':'bold','background-color': 'rgb(184, 134, 11)', 'color': 'black'}),
-        dbc.PopoverBody(
-            [
-                html.Strong("1. Begin by entering all your public wallet addresses first."),
-                html.Div("35nVM2jFH4VhhnEqvQnVVVs9b6U3pJnzmG 1FV3sVEhib1KF8WqwMmJmmHLD9UAGVKQiU 1KaxPqBzRr76EmueqPgKsdwrPxCrNTDspu"),
-            ],
-            style = {'color':'white'}
-        ),
+        dbc.PopoverBody([
+            html.Strong("1. Begin by entering all your public wallet addresses first."),
+            html.Div("35nVM2jFH4VhhnEqvQnVVVs9b6U3pJnzmG 1FV3sVEhib1KF8WqwMmJmmHLD9UAGVKQiU 1KaxPqBzRr76EmueqPgKsdwrPxCrNTDspu"),
+        ], style = {'color':'white'}),
     ],
     trigger='hover',
     target='app_info',
     style={'max-width': '1000px','background-color': 'black','color': 'white'}
 )
 
-popover_content_wallets = dbc.Popover(
-    [
+# Create the popver content for the "wallets" icon in the top right of the application's navbar (header)
+popover_content_wallets = dbc.Popover([
         dbc.PopoverHeader("Public Bitcoin Wallet Addresses for Testing", style={'font-weight':'bold','background-color': 'rgb(184, 134, 11)', 'color': 'black'}),
-        dbc.PopoverBody(
-            [
-                html.Strong("Small BTC Amount History:"),
-                html.Div("35nVM2jFH4VhhnEqvQnVVVs9b6U3pJnzmG 1FV3sVEhib1KF8WqwMmJmmHLD9UAGVKQiU 1KaxPqBzRr76EmueqPgKsdwrPxCrNTDspu"),
-                html.Div("17BLucvnjQuMgvGLSarDqC8nxrj8PoAEnV 1MpeoHWC82iaix8X7k79esYwH8P3SNZk6G 19eL91vPS3eHQiL5wAvRP6HAZj3AdY4rv2"),
-                html.Strong("Medium BTC Amount History:"),
-                html.Div("1Ric8cLznTzfEou6XsQakshST5VXJJKkf 17jGZpvEUGbSDkvt8AqniGMbbek12VZtZc 1BbqgqEqEZ2jvTWCvVPjmi8xaVzsFjcorP"),
-                html.Div("1JXN3G3Z8DiuUgxvGEKAqk2kvWs7T3wL2E 1466GDyUBh7BkqjXqAuQk6SaBJp83iyMRf 1CmmGYZBrSLMrxAiJupY2aF4gHyJe2VzJu"),
-                html.Strong("Large BTC Amount History:"),
-                html.Div("19XMqP6XgFMBLAQmCFnxo7eZd2zMFHVF4a 1CmmGYZBrSLMrxAiJupY2aF4gHyJe2VzJu 1LHXajb4UGW6x6i9VkvcxRiaNVLBFyqUz2 1GoR3H3kSc6cG3YomaVRqKtBJRanqrha5Z"),
-                html.Strong("Very Large BTC Amount History"),
-                html.Div("17twDmWFPbecR6TtZPaD172A82b7PJStxW")
-            ],
-            style = {'color':'white'}
-        ),
+        dbc.PopoverBody([
+            html.Strong("Small BTC Amount History:"),
+            html.Div("35nVM2jFH4VhhnEqvQnVVVs9b6U3pJnzmG 1FV3sVEhib1KF8WqwMmJmmHLD9UAGVKQiU 1KaxPqBzRr76EmueqPgKsdwrPxCrNTDspu"),
+            html.Div("17BLucvnjQuMgvGLSarDqC8nxrj8PoAEnV 1MpeoHWC82iaix8X7k79esYwH8P3SNZk6G 19eL91vPS3eHQiL5wAvRP6HAZj3AdY4rv2"),
+            html.Strong("Medium BTC Amount History:"),
+            html.Div("1Ric8cLznTzfEou6XsQakshST5VXJJKkf 17jGZpvEUGbSDkvt8AqniGMbbek12VZtZc 1BbqgqEqEZ2jvTWCvVPjmi8xaVzsFjcorP"),
+            html.Div("1JXN3G3Z8DiuUgxvGEKAqk2kvWs7T3wL2E 1466GDyUBh7BkqjXqAuQk6SaBJp83iyMRf 1CmmGYZBrSLMrxAiJupY2aF4gHyJe2VzJu"),
+            html.Strong("Large BTC Amount History:"),
+            html.Div("19XMqP6XgFMBLAQmCFnxo7eZd2zMFHVF4a 1CmmGYZBrSLMrxAiJupY2aF4gHyJe2VzJu 1LHXajb4UGW6x6i9VkvcxRiaNVLBFyqUz2 1GoR3H3kSc6cG3YomaVRqKtBJRanqrha5Z"),
+            html.Strong("Very Large BTC Amount History"),
+            html.Div("17twDmWFPbecR6TtZPaD172A82b7PJStxW")
+        ],style = {'color':'white'}),
     ],
     trigger='hover',
     target='bitcoin_wallets',
     style={'max-width': '1000px','background-color': 'black','color': 'white'}
 )
 
+# Create the navbar (header) of the application
 navbar = dbc.Navbar([
     dbc.Container([
         dbc.Row([
@@ -459,7 +453,7 @@ navbar = dbc.Navbar([
     ], fluid = True)
 ], id = 'navbar', color='rgb(184, 134, 11)')
 
-# Side card object that go on the left side of the page and show the wallet addresses input
+# Create the side card object that goes on the left side of the page for wallet address input/display
 side_card = dbc.Card(dbc.CardBody([
     dbc.Label("Enter A Bitcoin Public Wallet Address", html_for = 'wallet_addresses_text_input', style={'font-weight':'bold','color': 'rgb(184, 134, 11)'}),
     dcc.Input(id = 'wallet_addresses_text_input', placeholder = 'Enter wallet address', style=button_style),
@@ -472,24 +466,20 @@ side_card = dbc.Card(dbc.CardBody([
     ], style = {'height':'100%'})
 ]), style = {'height': '100vh', 'background-color':'black','border':'2px solid rgb(184, 134, 11)'})
 
-# Design the Dash application's layout; pay attention to width's and objects being used 
+# Design the Dash application's layout; this layout is heavily formatted using dbc.Row and dbc.Col objects
 app.layout = html.Div([
     dbc.Row([
         dbc.Col([navbar],width=12)
     ]),
     html.Br(),
-    
     dbc.Row([
-        
         # Left Side Panel for Bitcoin Address Entry
         dbc.Col(side_card, width=2), 
         dbc.Col([
             dbc.Row([
-                
                 # Chart Filtering Buttons
                 dbc.Col([
                     html.Div([
-                        # Time filter buttons that go above the wallet_graph
                         html.Br(),
                         html.Br(),
                         html.Button('1D',id='1D_button', style=button_style),
@@ -507,7 +497,6 @@ app.layout = html.Div([
                     html.Div([
                         html.Br(),
                         html.Br(),
-                        
                         # Radio Items for Portfolio / Individual Wallets Time Series View
                         dbc.Row([
                             dbc.Col([
@@ -531,14 +520,12 @@ app.layout = html.Div([
                 ], width = 7)
             ]),
             html.Div([
-                
                 # Object that contains the wallet_graph on the page; uses the generated empty figure initially
                 dcc.Graph(id='wallet_graph',
                           figure=generate_graph(session_state.filtered_all_wallet_df,'24hr-average','portfolio')[0]
                          )
             ], style={'border': '2px solid rgb(184,134,11)'}), 
             html.Br(),
-            
             # Portfolio metrics that go below the wallet_graph
             dbc.Row([
                 dbc.Col([
@@ -569,7 +556,6 @@ app.layout = html.Div([
                     )
                 ], width = 3)
             ], justify = 'evenly'),  
-            
             html.Br(),
             html.Br(),
             html.Br(),
@@ -587,14 +573,11 @@ app.layout = html.Div([
                 ], width = 3),
                 dbc.Col([],width=3)
             ], justify = 'evenly'),
-            
             html.Br(),
             html.Div([
-                
                 # Object that contains the projection_graph on the page
                 html.Div([dcc.Graph(id='projection_graph')],style={'border': '2px solid rgb(184,134,11)'}),
                 html.Br(),
-                
                 # Portfolio projection metrics that go below the projection graph
                 dbc.Row([
                     dbc.Col([
@@ -625,6 +608,7 @@ app.layout = html.Div([
     ])
 ], style={'width':'100%','background-color': 'black'})
     
+# This callback / function changes the view of wallet_graph (main graph on the page) when a new "view" item in the top right of the application is selected
 @app.callback(
     Output('wallet_graph','figure'),
     Input('filter_view_radio_items','value'),
@@ -638,6 +622,7 @@ def change_graph_view(radio_value,price_type):
         fig = generate_graph(session_state.filtered_all_wallet_df,price_type,radio_value)[0]
     return fig
         
+# This callback / function updates the wallet address count on the left side card of the application whenever the len of the "wallet_address" object's children changes
 @app.callback(
     Output('wallet_addresses_counter_and_label','children',allow_duplicate=True),
     Input('wallet_addresses','children'),
@@ -649,6 +634,7 @@ def update_address_count(children):
             address_count+=1
     return str(address_count)+' Addresses Added'
 
+# This callback / function resets the entire application to its initial state; it passes the respective default values for each object back to each object on the page
 @app.callback(
     Output('wallet_addresses_text_input','value',allow_duplicate=True),
     Output('wallet_addresses_counter_and_label','children',allow_duplicate=True),
@@ -683,7 +669,7 @@ def reset_application(n_clicks):
                 0,
                 {'display':'none'}]
 
-# # Callback to change graph 1 based on calculation method selected
+# This callback / function changes the "wallet_graph" (main graph on the page) to display value based on the pricing method selected
 @app.callback(
     Output('wallet_graph','figure',allow_duplicate=True), # By default, objects should not used as output in multiple callbacks; have to allow duplicates manually
     Output('current_bitcoin_balance','value',allow_duplicate=True),
@@ -702,7 +688,7 @@ def change_price_calculation(price_type,wallet_addresses,radio_value):
     else:
         return fig,0,0,0
 
-# Callback that tracks the user wallets added and processes them (adds them to the page, generates graphs, generates session_state's dataframes for the wallet)
+# This callback / function tracks the user wallets added and processes them (adds them to the page, generates graphs, generates session_state's DataFrames for the wallet)
 @app.callback(
     Output('wallet_addresses_text_input','value',allow_duplicate=True),
     Output('wallet_addresses','children',allow_duplicate=True),
@@ -717,7 +703,6 @@ def change_price_calculation(price_type,wallet_addresses,radio_value):
     State('filter_view_radio_items','value'),
     prevent_initial_call=True
 )
-#def update_portfolio_display(n_clicks,input_value,wallet_addresses):  
 def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type,radio_value):
     input_value = input_value.strip()
     if wallet_addresses is None:
@@ -734,10 +719,9 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type,ra
     # Grab the current btc balance / usd value by querying these respective columns in the last row of the session_state's filtered_all_wallet_df
     curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
     curr_usd_value = f"${curr_usd_value:.2f}"
-
     return input_value,wallet_addresses,fig,curr_btc_balance,curr_btc_balance,curr_usd_value
 
-# Callback to filter the wallet_graph similar to a traditional stock-chart; identify what timespan button was clicked by user and filter accordingly
+# This callbakc / function the "wallet_graph" similar to a traditional stock-chart; identify what timespan button was clicked by user and filter the time series graph accordingly
 @app.callback(
     Output('wallet_graph','figure',allow_duplicate=True),
     Input('1D_button','n_clicks'),
@@ -811,7 +795,7 @@ def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, cli
     fig = generate_graph(filtered_df,price_type,radio_value,button_id)[0]
     return fig
 
-# Callback to update the projection graph based on the user's selected projection year
+# This callback / function updates the projection graph based on the user's selected projection year
 @app.callback(
     Output('projection_graph_div','style',allow_duplicate=True),
     Output('projection_graph','figure',allow_duplicate=True),
@@ -914,7 +898,7 @@ def update_projection_display(input_year,wallet_addresses,btc_bal,radio_value,pr
             font=dict(color='rgb(184,134,11)')
         )
         return {'display':'block'},fig,proj_btc_val
-    return {'display':'none'},empty_fig,0 # may need to change this to display block, we'll see
+    return {'display':'none'},empty_fig,0 
 
 # Main function to run the Dash application / server
 if __name__ == "__main__":
@@ -925,7 +909,7 @@ if __name__ == "__main__":
     # app.run_server(jupyter_mode='external',port=7953)
 
 
-# In[30]:
+# In[4]:
 
 
 print("Pandas version:", pd.__version__)
@@ -934,6 +918,12 @@ print("Requests version:", requests.__version__)
 print("yfinance version:", yf.__version__)
 print("Dash version:", dash.__version__)
 print("Scikit-learn version:", sklearn.__version__)
+# Pandas version: 1.5.3
+# NumPy version: 1.24.3
+# Requests version: 2.31.0
+# yfinance version: 0.2.28
+# Dash version: 2.13.0
+# Scikit-learn version: 1.2.2
 
 
 # In[ ]:
