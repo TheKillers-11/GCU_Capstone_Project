@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[11]:
+# In[5]:
 
 
 import pandas as pd
@@ -669,7 +669,7 @@ def reset_application(n_clicks):
                 0,
                 '24hr-average',
                 None,
-                None,
+                generate_graph(session_state.filtered_all_wallet_df,'24hr-average','portfolio')[0],
                 0,
                 0,
                 {'display':'none'}]
