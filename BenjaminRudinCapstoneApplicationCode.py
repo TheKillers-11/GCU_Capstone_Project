@@ -390,6 +390,9 @@ def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
 # Initialize the Dash app object
 app = Dash(__name__, external_stylesheets = [dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME])
 
+# Initialize the Dash app server via Render.com
+server = app.server
+
 # Specify style for html.buttons in the Dash app layout
 button_style = {'background-color': 'black', 'color': 'rgb(184, 134, 11)', 'border': '1px solid rgb(184, 134, 11)'}
 
