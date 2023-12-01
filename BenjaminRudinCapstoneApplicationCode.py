@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[5]:
+# In[3]:
 
 
 import pandas as pd
@@ -10,8 +10,9 @@ import requests
 import yfinance as yf
 from datetime import datetime, timedelta
 import dash
-import dash_bootstrap_components as dbc
 from dash import Dash, dcc, html, Input, Output, callback, State
+import dash_bootstrap_components as dbc
+import plotly
 import plotly.express as px
 import plotly.graph_objects as go
 import sklearn
@@ -113,11 +114,13 @@ def validate_wallet(bitcoin_address):
     # Store all the transactions (with metadata) of the wallet; gather all the unique transaction IDs from transactions in the wallet
     transactions = []
     txid_set = set()
-
     try:
         # Make calls of 25 (the limit of transactions returned) transactions via the Blockstream API until there are no more unique transaction IDs for the given public Bitcoin wallet
         while True:
+            # try:
             response = requests.get(url)
+            # except requests.exceptions.RequestException as e:
+            #     return False
             response.raise_for_status()  # Check for any HTTP errors
             transactions_data = response.json()
             new_tx_count = 0
@@ -390,9 +393,6 @@ def generate_graph(filtered_df_in, price_type, radio_value, button_id=None):
 # Initialize the Dash app object
 app = Dash(__name__, external_stylesheets = [dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME])
 
-# Initialize the Dash app server via Render.com
-server = app.server
-
 # Specify style for html.buttons in the Dash app layout
 button_style = {'background-color': 'black', 'color': 'rgb(184, 134, 11)', 'border': '1px solid rgb(184, 134, 11)'}
 
@@ -408,7 +408,7 @@ popover_content_info = dbc.Popover([
             html.Div("You can filter this graph with the time buttons in the top left; you can also change the view (individual-wallet-level or portfolio-level) in the top right."),
             html.Strong("3. Change the price calculation method via the dropdown in the middle right of the page."),
             html.Div("This will allow you to change the underlying price calculation of your Bitcoin's USD value to the daily low, average (of open and closing price), or high price using Yahoo Finance data."),
-            html.Strong("4. Select a prediction year to see what your current BTC amount's future value could be. ONLY DO THIS ONCE ALL WALLETS ARE INPUT."),
+            html.Strong("4. Select a prediction year to see what your current BTC amount's future value could be. To get this projection graph to recalculate after adding additional wallets, select a new prediction year."),
             html.Div("Notice that a trace in the projection graph is shown for the linear regression prediction based on the low, average, and high BTC historical prices separately."),
             html.Strong("5. Click the 'clear wallets' button on the left side panel to reset the application entirely."),
         ], style = {'color':'white'}),
@@ -430,7 +430,7 @@ popover_content_wallets = dbc.Popover([
             html.Div("1JXN3G3Z8DiuUgxvGEKAqk2kvWs7T3wL2E 1466GDyUBh7BkqjXqAuQk6SaBJp83iyMRf"),
             html.Strong("Large BTC Amount History:"),
             html.Div("19XMqP6XgFMBLAQmCFnxo7eZd2zMFHVF4a 1CmmGYZBrSLMrxAiJupY2aF4gHyJe2VzJu 1LHXajb4UGW6x6i9VkvcxRiaNVLBFyqUz2 1GoR3H3kSc6cG3YomaVRqKtBJRanqrha5Z"),
-            html.Strong("Very Large BTC Amount History"),
+            html.Strong("Very Large BTC Amount History:"),
             html.Div("17twDmWFPbecR6TtZPaD172A82b7PJStxW")
         ],style = {'color':'white'}),
     ],
@@ -725,7 +725,12 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type,ra
     fig,curr_usd_value = generate_graph(session_state.filtered_all_wallet_df,price_type,radio_value)
     
     # Grab the current btc balance / usd value by querying these respective columns in the last row of the session_state's filtered_all_wallet_df
-    curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]
+    # Catch the case when no valid wallets have been input yet
+    curr_btc_balance = 0
+    if len(session_state.filtered_all_wallet_df)>=1:
+        curr_btc_balance = session_state.filtered_all_wallet_df['Amount'].iloc[-1]   
+    
+    # Format the BTC's USD value to 2 decimal places
     curr_usd_value = f"${curr_usd_value:.2f}"
     return input_value,wallet_addresses,fig,curr_btc_balance,curr_btc_balance,curr_usd_value
 
@@ -743,8 +748,16 @@ def update_portfolio_display(n_clicks,input_value,wallet_addresses,price_type,ra
     Input('ALL_button','n_clicks'),
     State('price_type_dropdown','value'),
     State('filter_view_radio_items','value'),
+    State('wallet_graph','figure'),
     prevent_initial_call=True)
-def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, clicks_ytd, clicks_1y, clicks_5y, clicks_all, price_type, radio_value):
+def time_filter_graph(clicks_1d, clicks_5d, clicks_1m, clicks_3m, clicks_6m, clicks_ytd, clicks_1y, clicks_5y, clicks_all, price_type, radio_value, current_graph):
+    # If the session_state's filtered_all_wallet_df is empty, it means that there is not currently a wallet entered into the application
+    # In this case, return the current wallet_graph unchanged
+    # This avoids an error in the callback; this error did not affect the application running properly, but it did technically cause this callback to exit with error
+    if len(session_state.filtered_all_wallet_df)<=0:
+        # generate_graph(session_state.filtered_all_wallet_df,price_type,)[0],
+        return current_graph
+    
     # Check and store which input triggered the callback
     ctx = dash.callback_context
     button_id = None if not ctx.triggered else ctx.triggered[0]['prop_id'].split('.')[0]
@@ -912,13 +925,13 @@ def update_projection_display(input_year,wallet_addresses,btc_bal,radio_value,pr
 if __name__ == "__main__":
     #app.run_server(debug=True) # THIS LINE OR SOMETHING SIMILAR WILL BE USED IN OTHER IDE's; NOTE THAT THE APP IS FORMATTED FOR EXTERNAL WINDOWS
     # I HAVE ONLY USED JUPYTER_LABS FOR THIS ASSIGNMENT; I CANNOT SPEAK ON OTHER IDE's
-    app.run_server(jupyter_mode='external',port=7953,debug=True)
+    #app.run_server(jupyter_mode='external',port=7953,debug=True)
     
     # To run this application on Jupyter without the Dash debug pop-up, remove debug=True
-    # app.run_server(jupyter_mode='external',port=7953)
+    app.run_server(jupyter_mode='external',port=7953)
 
 
-# In[7]:
+# In[2]:
 
 
 print("Pandas version:", pd.__version__)
@@ -927,16 +940,13 @@ print("Requests version:", requests.__version__)
 print("yfinance version:", yf.__version__)
 print("Dash version:", dash.__version__)
 print("Scikit-learn version:", sklearn.__version__)
-# Pandas version: 1.5.3
-# NumPy version: 1.24.3
-# Requests version: 2.31.0
-# yfinance version: 0.2.28
-# Dash version: 2.13.0
-# Scikit-learn version: 1.2.2
+print("Dash Bootstrap Components version:", dbc.__version__)
+print("Plotly version:", plotly.__version__)
 
 
-# In[ ]:
+# In[10]:
 
 
-
+# import sys
+# print(sys.version)
 
