@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[3]:
+# In[1]:
 
 
 import pandas as pd
@@ -117,10 +117,7 @@ def validate_wallet(bitcoin_address):
     try:
         # Make calls of 25 (the limit of transactions returned) transactions via the Blockstream API until there are no more unique transaction IDs for the given public Bitcoin wallet
         while True:
-            # try:
             response = requests.get(url)
-            # except requests.exceptions.RequestException as e:
-            #     return False
             response.raise_for_status()  # Check for any HTTP errors
             transactions_data = response.json()
             new_tx_count = 0
@@ -929,24 +926,4 @@ if __name__ == "__main__":
     
     # To run this application on Jupyter without the Dash debug pop-up, remove debug=True
     app.run_server(jupyter_mode='external',port=7953)
-
-
-# In[2]:
-
-
-print("Pandas version:", pd.__version__)
-print("NumPy version:", np.__version__)
-print("Requests version:", requests.__version__)
-print("yfinance version:", yf.__version__)
-print("Dash version:", dash.__version__)
-print("Scikit-learn version:", sklearn.__version__)
-print("Dash Bootstrap Components version:", dbc.__version__)
-print("Plotly version:", plotly.__version__)
-
-
-# In[10]:
-
-
-# import sys
-# print(sys.version)
 
